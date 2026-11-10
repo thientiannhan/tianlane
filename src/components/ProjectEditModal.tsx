@@ -42,6 +42,7 @@ export const ProjectEditModal: React.FC<ProjectEditModalProps> = ({
 }) => {
   const [code, setCode] = useState(project.code);
   const [name, setName] = useState(project.name);
+  const [avatarUrl, setAvatarUrl] = useState(project.avatar_url || '');
   const [clientOrUnit, setClientOrUnit] = useState(project.client_or_unit);
   const [description, setDescription] = useState(project.description);
   const [status, setStatus] = useState<Project['status']>(project.status);
@@ -59,6 +60,7 @@ export const ProjectEditModal: React.FC<ProjectEditModalProps> = ({
     if (isOpen) {
       setCode(project.code);
       setName(project.name);
+      setAvatarUrl(project.avatar_url || '');
       setClientOrUnit(project.client_or_unit);
       setDescription(project.description);
       setStatus(project.status);
@@ -156,6 +158,7 @@ export const ProjectEditModal: React.FC<ProjectEditModalProps> = ({
       ...project,
       code: cleanCode,
       name: cleanName,
+      avatar_url: avatarUrl.trim() || undefined,
       client_or_unit: clientOrUnit.trim() || 'Enterprise Unit',
       description: description.trim(),
       status,
@@ -217,6 +220,59 @@ export const ProjectEditModal: React.FC<ProjectEditModalProps> = ({
               {formError}
             </div>
           )}
+
+          {/* Project Avatar / Client Logo */}
+          <div className="flex items-center gap-4 p-3.5 rounded-2xl bg-[#F7F8FA] border border-[#E6E8EE]">
+            <div className="relative w-14 h-14 rounded-2xl bg-[#EEF3FB] border border-[#B7CDF5] flex items-center justify-center font-mono font-bold text-[16px] text-[#0A4595] overflow-hidden shrink-0 shadow-clean-xs">
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={name || code}
+                  className="w-full h-full object-cover"
+                  onError={() => setAvatarUrl('')}
+                />
+              ) : (
+                <span>{(code || 'PR').slice(0, 3)}</span>
+              )}
+            </div>
+            <div className="flex-1 min-w-0 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label
+                  htmlFor="edit-project-avatar"
+                  className="text-[12px] font-medium text-[#45474D]"
+                >
+                  Project Avatar / Client Logo
+                </label>
+                <label className="text-[11.5px] text-[#0A4595] hover:underline cursor-pointer font-medium">
+                  Upload file...
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        if (typeof reader.result === 'string') {
+                          setAvatarUrl(reader.result);
+                        }
+                      };
+                      reader.readAsDataURL(file);
+                    }}
+                  />
+                </label>
+              </div>
+              <input
+                id="edit-project-avatar"
+                type="url"
+                value={avatarUrl}
+                onChange={(e) => setAvatarUrl(e.target.value)}
+                placeholder="https://example.com/client-logo.png or choose file..."
+                className="w-full px-3 py-1.5 rounded-xl border border-[#E6E8EE] bg-white focus:border-[#0A4595] text-[12.5px] text-[#121317] outline-none"
+              />
+            </div>
+          </div>
 
           {/* Core Project Metadata */}
           <div className="grid grid-cols-1 md:grid-cols-12 gap-4">

@@ -10,6 +10,7 @@ interface UserProfileModalProps {
 }
 
 const JOB_ROLES: UserProfile['role'][] = [
+  'Owner',
   'Product Owner',
   'Tech Lead',
   'Senior Dev',

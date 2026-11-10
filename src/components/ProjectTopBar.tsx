@@ -73,6 +73,13 @@ export const ProjectTopBar: React.FC<ProjectTopBarProps> = ({
             <>
               <span className="text-[13px] text-[#6E717A]">Projects</span>
               <span className="text-[#E6E8EE]">/</span>
+              {activeProject.avatar_url && (
+                <img
+                  src={activeProject.avatar_url}
+                  alt={activeProject.name}
+                  className="w-5 h-5 rounded object-cover border border-[#E6E8EE] shrink-0"
+                />
+              )}
               <span className="font-mono text-[12.5px] text-[#45474D] tabular-nums">
                 {activeProject.code}
               </span>

@@ -705,6 +705,77 @@ export const App: React.FC = () => {
     );
   };
 
+  const handleUpdateMemberProjectRole = (
+    targetUser: UserProfile,
+    newRole: ProjectMemberRole
+  ) => {
+    if (!activeProject) return;
+    const existingMembers = activeProject.members || [];
+    const isAlready = existingMembers.some(
+      (m) =>
+        m.email.toLowerCase() === targetUser.email.toLowerCase() ||
+        m.user_id === targetUser.id
+    );
+    let nextMembers: ProjectMember[];
+    if (isAlready) {
+      nextMembers = existingMembers.map((m) =>
+        m.email.toLowerCase() === targetUser.email.toLowerCase() ||
+        m.user_id === targetUser.id
+          ? { ...m, role: newRole }
+          : m
+      );
+    } else {
+      nextMembers = [
+        ...existingMembers,
+        {
+          user_id: targetUser.id,
+          email: targetUser.email,
+          full_name: targetUser.full_name,
+          avatar_initials: targetUser.avatar_initials,
+          role: newRole,
+          added_at: new Date().toISOString().slice(0, 10),
+          added_by: currentUser.full_name,
+        },
+      ];
+    }
+    handleUpdateProjectMembers(activeProject.id, nextMembers);
+    showToast(
+      `Updated ${targetUser.full_name}'s access role to ${newRole.toUpperCase()} on project ${activeProject.code}.`
+    );
+  };
+
+  const handleCreateNewAccount = async (
+    newUser: UserProfile,
+    assignTeamIds: string[]
+  ) => {
+    setUsers((prev) => [...prev, newUser]);
+    if (assignTeamIds.length > 0) {
+      setTeams((prev) =>
+        prev.map((t) =>
+          assignTeamIds.includes(t.id) && !t.member_ids?.includes(newUser.id)
+            ? { ...t, member_ids: [...(t.member_ids || []), newUser.id] }
+            : t
+        )
+      );
+    }
+    try {
+      const apiBase = getApiBaseUrl();
+      await fetch(`${apiBase}/api/users/profile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: newUser.email,
+          fullName: newUser.full_name,
+          role: newUser.role,
+          newPassword: newUser.password,
+        }),
+      });
+    } catch {
+      // Local profile saved
+    }
+    showToast(`Created account for ${newUser.full_name} (${newUser.email}).`);
+  };
+
   const handleRegisterNewDirectoryUser = (newUser: UserProfile) => {
     setUsers((prev) => {
       if (
@@ -973,6 +1044,7 @@ export const App: React.FC = () => {
     startDateISO: string;
     odooProjectId: number;
     autoPushToOdoo: boolean;
+    avatarUrl?: string;
   }) => {
     const result = instantiateProjectFromTemplateEngine({
       template: payload.template,
@@ -985,6 +1057,10 @@ export const App: React.FC = () => {
       ownerId: currentUser.id,
       users,
     });
+
+    if (payload.avatarUrl) {
+      result.project.avatar_url = payload.avatarUrl;
+    }
 
     let baseNewTasks = result.tasks;
     let baseNewMilestones = result.milestones;
@@ -1569,6 +1645,8 @@ export const App: React.FC = () => {
                     setActiveSection('projects');
                   }}
                   onUpdateMemberRole={handleUpdateMemberRole}
+                  onUpdateProjectMemberRole={handleUpdateMemberProjectRole}
+                  onOpenCreateTeam={() => setIsCreateTeamOpen(true)}
                   onOpenMembersModal={() => setIsMembersModalOpen(true)}
                   onOpenAuthModal={() => setIsAuthModalOpen(true)}
                   onOpenUserProfile={() => setIsUserProfileOpen(true)}
@@ -1584,6 +1662,7 @@ export const App: React.FC = () => {
                   onUpdateUserRole={handleUpdateMemberRole}
                   onSelectUserLogin={handleAuthenticatedUser}
                   onOpenUserProfile={() => setIsUserProfileOpen(true)}
+                  onCreateAccount={handleCreateNewAccount}
                 />
               )}
 

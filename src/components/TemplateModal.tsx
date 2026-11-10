@@ -18,6 +18,7 @@ interface TemplateModalProps {
     startDateISO: string;
     odooProjectId: number;
     autoPushToOdoo: boolean;
+    avatarUrl?: string;
   }) => void;
 }
 
@@ -33,6 +34,7 @@ export const TemplateModal: React.FC<TemplateModalProps> = ({
   const [projectName, setProjectName] = useState('CRM Omni-Channel v2');
   const [projectCode, setProjectCode] = useState('26-12');
   const [clientOrUnit, setClientOrUnit] = useState('Commercial Operations');
+  const [avatarUrl, setAvatarUrl] = useState('');
   const [startDateISO, setStartDateISO] = useState('2026-11-16');
   const [odooProjectId, setOdooProjectId] = useState('64');
   const [autoPushToOdoo, setAutoPushToOdoo] = useState(true);
@@ -63,6 +65,7 @@ export const TemplateModal: React.FC<TemplateModalProps> = ({
       startDateISO,
       odooProjectId: parsedOdooId,
       autoPushToOdoo,
+      avatarUrl: avatarUrl.trim() || undefined,
     });
     onClose();
   };
@@ -176,6 +179,23 @@ export const TemplateModal: React.FC<TemplateModalProps> = ({
                 value={clientOrUnit}
                 onChange={(e) => setClientOrUnit(e.target.value)}
                 className="w-full px-3.5 py-2 rounded-xl border border-[#E6E8EE] text-[13.5px] text-[#121317]"
+              />
+            </div>
+
+            <div className="md:col-span-12">
+              <label
+                htmlFor="input-project-avatar"
+                className="block text-[12px] text-[#45474D] mb-1"
+              >
+                Project Avatar / Client Logo URL (Optional)
+              </label>
+              <input
+                id="input-project-avatar"
+                type="url"
+                value={avatarUrl}
+                onChange={(e) => setAvatarUrl(e.target.value)}
+                placeholder="https://example.com/client-logo.png"
+                className="w-full px-3.5 py-2 rounded-xl border border-[#E6E8EE] text-[13px] text-[#121317] outline-none"
               />
             </div>
 

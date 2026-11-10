@@ -8,7 +8,7 @@ export interface UserProfile {
   email: string;
   avatar_initials: string;
   avatar_url?: string;
-  role: 'Product Owner' | 'Tech Lead' | 'Senior Dev' | 'UI/UX Designer' | 'QA Engineer';
+  role: 'Owner' | 'Product Owner' | 'Tech Lead' | 'Senior Dev' | 'UI/UX Designer' | 'QA Engineer';
   teams_status: 'available' | 'busy' | 'in_meeting';
   teams_webhook_url: string;
   password?: string;
@@ -176,6 +176,7 @@ export interface Project {
   share_token: string;
   members?: ProjectMember[];
   invite_default_role?: 'viewer' | 'writer';
+  avatar_url?: string;
 }
 
 export function getApiBaseUrl(): string {
@@ -205,6 +206,7 @@ export function isUserAdmin(user: UserProfile | null | undefined): boolean {
   if (!user) return false;
   return Boolean(
     user.is_admin ||
+      user.role === 'Owner' ||
       user.email?.toLowerCase() === 'james.nhan@logtechub.com' ||
       user.id === 'usr-po-01'
   );

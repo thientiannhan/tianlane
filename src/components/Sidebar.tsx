@@ -449,7 +449,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           : 'text-[#45474D] hover:bg-[#ECEEF3]/60 hover:text-[#121317]'
                       }`}
                     >
-                      <span className="truncate">{proj.name}</span>
+                      <div className="flex items-center gap-2 min-w-0 truncate">
+                        {proj.avatar_url ? (
+                          <img
+                            src={proj.avatar_url}
+                            alt={proj.name}
+                            className="w-4 h-4 rounded object-cover border border-[#E6E8EE] shrink-0"
+                          />
+                        ) : (
+                          <span className="w-4 h-4 rounded bg-[#EEF3FB] text-[#0A4595] text-[9.5px] font-bold flex items-center justify-center shrink-0">
+                            {proj.code.slice(0, 2)}
+                          </span>
+                        )}
+                        <span className="truncate">{proj.name}</span>
+                      </div>
                       <div className="flex items-center gap-1.5 shrink-0">
                         <span
                           className={`text-[9.5px] font-semibold uppercase px-1 rounded ${
@@ -525,19 +538,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Your Team Section */}
         <div className="space-y-1">
-          <button
-            type="button"
-            onClick={onToggleTeams}
-            className="px-2 flex items-center gap-1 text-[12px] font-medium text-[#6E717A] hover:text-[#121317]"
-          >
-            <span>Team &amp; Access</span>
-            <ChevronDown
-              className={`w-3 h-3 transition-transform ${
-                teamsOpen ? '' : '-rotate-90'
-              }`}
-              aria-hidden="true"
-            />
-          </button>
+          <div className="px-2 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={onToggleTeams}
+              className="flex items-center gap-1 text-[12px] font-medium text-[#6E717A] hover:text-[#121317]"
+            >
+              <span>Team &amp; Access</span>
+              <ChevronDown
+                className={`w-3 h-3 transition-transform ${
+                  teamsOpen ? '' : '-rotate-90'
+                }`}
+                aria-hidden="true"
+              />
+            </button>
+            {isAdmin && onOpenCreateTeam && (
+              <button
+                type="button"
+                onClick={onOpenCreateTeam}
+                title="Create new team (Admin)"
+                className="w-5 h-5 rounded hover:bg-[#ECEEF3] text-[#6E717A] hover:text-[#0A4595] flex items-center justify-center transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
 
           {teamsOpen && (
             <div className="space-y-0.5">
@@ -570,6 +595,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <Users className="w-3.5 h-3.5" aria-hidden="true" />
                   <span>Members &amp; Roles</span>
                 </button>
+
+                {isAdmin && onOpenCreateTeam && (
+                  <button
+                    type="button"
+                    onClick={onOpenCreateTeam}
+                    className="w-full text-left px-2.5 py-1 rounded-lg text-[12px] text-[#0A4595] hover:bg-[#ECEEF3]/60 flex items-center gap-1.5 font-medium transition-colors cursor-pointer"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Create new team...</span>
+                  </button>
+                )}
               </div>
             </div>
           )}

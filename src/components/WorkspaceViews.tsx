@@ -4,6 +4,7 @@ import {
   Check,
   Copy,
   KeyRound,
+  Link2,
   Plus,
   RotateCcw,
   Search,
@@ -11,6 +12,8 @@ import {
   Shield,
   ShieldCheck,
   UserCheck,
+  UserPlus,
+  X,
 } from 'lucide-react';
 import {
   getUserProjectRole,
@@ -21,6 +24,7 @@ import {
   type McpToolName,
   type OdooConnectionConfig,
   type Project,
+  type ProjectMemberRole,
   type ProjectMilestone,
   type ProjectTask,
   type ProjectTemplate,
@@ -679,12 +683,18 @@ interface TeamViewProps {
     userId: string,
     newRole: UserProfile['role']
   ) => Promise<void> | void;
+  onUpdateProjectMemberRole?: (
+    targetUser: UserProfile,
+    newRole: ProjectMemberRole
+  ) => void;
+  onOpenCreateTeam?: () => void;
   onOpenMembersModal?: () => void;
   onOpenAuthModal?: () => void;
   onOpenUserProfile?: () => void;
 }
 
 const POSITION_CHOICES: UserProfile['role'][] = [
+  'Owner',
   'Product Owner',
   'Tech Lead',
   'Senior Dev',
@@ -700,6 +710,8 @@ export const TeamView: React.FC<TeamViewProps> = ({
   activeTeam,
   onFilterByMember,
   onUpdateMemberRole,
+  onUpdateProjectMemberRole,
+  onOpenCreateTeam,
   onOpenMembersModal,
   onOpenAuthModal,
   onOpenUserProfile,
@@ -732,12 +744,23 @@ export const TeamView: React.FC<TeamViewProps> = ({
           </div>
           <p className="text-[13px] text-[#45474D] mt-0.5">
             {isPm
-              ? 'PMs can assign and calibrate positions for members in this team.'
+              ? 'Manage member access roles (Owner, Writer, Viewer) and share invite links.'
               : 'Team member directory and project permissions.'}
           </p>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {isAdmin && onOpenCreateTeam && (
+            <button
+              type="button"
+              onClick={onOpenCreateTeam}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#0A4595] hover:bg-[#1264D4] text-white text-[12px] font-medium transition-colors shadow-clean-xs"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>+ Create Team</span>
+            </button>
+          )}
+
           {isAdmin && (
             <button
               type="button"
@@ -750,6 +773,17 @@ export const TeamView: React.FC<TeamViewProps> = ({
             </button>
           )}
 
+          {onOpenMembersModal && activeProject && (
+            <button
+              type="button"
+              onClick={onOpenMembersModal}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-[#B7CDF5] bg-[#EEF3FB] hover:bg-[#E0EAFA] text-[#0A4595] text-[12px] font-medium transition-colors"
+            >
+              <Link2 className="w-3.5 h-3.5" />
+              <span>Invite Link ({activeProject.code})</span>
+            </button>
+          )}
+
           {onOpenUserProfile && (
             <button
               type="button"
@@ -757,16 +791,6 @@ export const TeamView: React.FC<TeamViewProps> = ({
               className="px-3.5 py-1.5 rounded-full border border-[#E6E8EE] hover:border-[#0A4595] bg-white text-[12.5px] font-medium text-[#121317] transition-colors"
             >
               My Profile
-            </button>
-          )}
-
-          {onOpenMembersModal && activeProject && (
-            <button
-              type="button"
-              onClick={onOpenMembersModal}
-              className="px-4 py-1.5 rounded-full bg-[#0A4595] hover:bg-[#1264D4] text-white text-[12.5px] font-medium transition-colors"
-            >
-              Project Access ({activeProject.code})
             </button>
           )}
         </div>
@@ -840,32 +864,45 @@ export const TeamView: React.FC<TeamViewProps> = ({
               </div>
 
               <div className="flex items-center gap-3 flex-wrap">
-                {/* PM or Admin can change member's Position right here */}
-                {isPm && onUpdateMemberRole ? (
+                {/* Position badge (customized by user in profile or admin in accounts) */}
+                <span className="px-2.5 py-1 rounded-xl text-[12px] font-medium bg-[#F1F3F7] text-[#45474D]">
+                  {member.role}
+                </span>
+
+                {/* Team & Project Access Role: Owner, Writer, Viewer */}
+                {activeProject && (
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[11.5px] text-[#6E717A]">Position:</span>
-                    <select
-                      value={member.role}
-                      onChange={(e) =>
-                        onUpdateMemberRole(
-                          member.id,
-                          e.target.value as UserProfile['role']
-                        )
-                      }
-                      className="px-2.5 py-1 text-[12px] font-medium rounded-xl border border-[#E6E8EE] bg-white text-[#121317] hover:border-[#0A4595] focus:outline-none transition-colors"
-                      title="Update position for this member"
-                    >
-                      {POSITION_CHOICES.map((pos) => (
-                        <option key={pos} value={pos}>
-                          {pos}
-                        </option>
-                      ))}
-                    </select>
+                    <span className="text-[11.5px] text-[#6E717A]">Project Access:</span>
+                    {(isAdmin || isPm) && onUpdateProjectMemberRole ? (
+                      <select
+                        value={projRole}
+                        onChange={(e) =>
+                          onUpdateProjectMemberRole(
+                            member,
+                            e.target.value as ProjectMemberRole
+                          )
+                        }
+                        className="px-2.5 py-1 text-[12px] font-medium rounded-xl border border-[#E6E8EE] bg-white text-[#121317] hover:border-[#0A4595] focus:outline-none transition-colors"
+                        title="Update project access role (Owner, Writer, Viewer)"
+                      >
+                        <option value="owner">Owner</option>
+                        <option value="writer">Writer</option>
+                        <option value="viewer">Viewer</option>
+                      </select>
+                    ) : (
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10.5px] font-semibold uppercase ${
+                          projRole === 'owner'
+                            ? 'bg-amber-100 text-amber-800'
+                            : projRole === 'writer'
+                            ? 'bg-[#EEF3FB] text-[#0A4595]'
+                            : 'bg-[#F1F3F7] text-[#45474D]'
+                        }`}
+                      >
+                        {projRole}
+                      </span>
+                    )}
                   </div>
-                ) : (
-                  <span className="px-2.5 py-1 rounded-xl text-[12px] font-medium bg-[#F1F3F7] text-[#45474D]">
-                    {member.role}
-                  </span>
                 )}
 
                 <span className="text-[12px] text-[#6E717A] tabular-nums">
@@ -1296,6 +1333,7 @@ interface AccountManagementViewProps {
   ) => Promise<void> | void;
   onSelectUserLogin?: (user: UserProfile) => void;
   onOpenUserProfile?: () => void;
+  onCreateAccount?: (newUser: UserProfile, assignTeamIds: string[]) => Promise<void> | void;
 }
 
 export const AccountManagementView: React.FC<AccountManagementViewProps> = ({
@@ -1306,13 +1344,86 @@ export const AccountManagementView: React.FC<AccountManagementViewProps> = ({
   onUpdateUserRole,
   onSelectUserLogin,
   onOpenUserProfile,
+  onCreateAccount,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | UserProfile['role']>('all');
   const [resettingEmail, setResettingEmail] = useState<string | null>(null);
   const [resetSuccessNotice, setResetSuccessNotice] = useState<string | null>(null);
 
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createName, setCreateName] = useState('');
+  const [createEmail, setCreateEmail] = useState('');
+  const [createRole, setCreateRole] = useState<UserProfile['role']>('Owner');
+  const [createIsAdmin, setCreateIsAdmin] = useState(true);
+  const [createTeamIds, setCreateTeamIds] = useState<string[]>([]);
+  const [createPassword, setCreatePassword] = useState('');
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [isSubmittingCreate, setIsSubmittingCreate] = useState(false);
+
   const currentYear = new Date().getFullYear();
+
+  const handleCreateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreateError(null);
+    const cleanName = createName.trim();
+    let cleanEmail = createEmail.trim().toLowerCase();
+    if (!cleanName) {
+      setCreateError('Please enter full name.');
+      return;
+    }
+    if (!cleanEmail) {
+      setCreateError('Please enter email.');
+      return;
+    }
+    if (!cleanEmail.includes('@')) {
+      cleanEmail = `${cleanEmail}@logtechub.com`;
+    }
+    const exists = users.some(
+      (u) => u.email.toLowerCase() === cleanEmail
+    );
+    if (exists) {
+      setCreateError(`Account ${cleanEmail} already exists.`);
+      return;
+    }
+
+    const username = cleanEmail.split('@')[0];
+    const initials =
+      cleanName
+        .split(' ')
+        .map((w) => w[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2) || 'LT';
+
+    const newUser: UserProfile = {
+      id: `usr-${username.replace(/[^a-z0-9]/g, '-')}-${Date.now().toString().slice(-4)}`,
+      microsoft_entra_id: `entra-${Date.now()}`,
+      full_name: cleanName,
+      email: cleanEmail,
+      avatar_initials: initials,
+      role: createRole,
+      is_admin: createIsAdmin || createRole === 'Owner',
+      teams_status: 'available',
+      teams_webhook_url: '',
+      password: createPassword.trim() || `${username}${currentYear}`,
+    };
+
+    setIsSubmittingCreate(true);
+    try {
+      if (onCreateAccount) {
+        await onCreateAccount(newUser, createTeamIds);
+      }
+      setShowCreateModal(false);
+      setResetSuccessNotice(
+        `Created account ${newUser.full_name} (${newUser.email}) with role ${newUser.role}. Default password: ${newUser.password}`
+      );
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : 'Failed to create account');
+    } finally {
+      setIsSubmittingCreate(false);
+    }
+  };
 
   const filteredUsers = users.filter((u) => {
     const q = searchTerm.trim().toLowerCase();
@@ -1372,15 +1483,37 @@ export const AccountManagementView: React.FC<AccountManagementViewProps> = ({
           </p>
         </div>
 
-        {onOpenUserProfile && (
-          <button
-            type="button"
-            onClick={onOpenUserProfile}
-            className="px-4 py-2 rounded-full border border-[#0A4595] text-[#0A4595] hover:bg-[#EEF3FB] text-[12.5px] font-medium transition-colors"
-          >
-            My Profile
-          </button>
-        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          {onCreateAccount && (
+            <button
+              type="button"
+              onClick={() => {
+                setCreateName('');
+                setCreateEmail('');
+                setCreateRole('Owner');
+                setCreateIsAdmin(true);
+                setCreateTeamIds(teams.map((t) => t.id));
+                setCreatePassword('');
+                setCreateError(null);
+                setShowCreateModal(true);
+              }}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#0A4595] hover:bg-[#1264D4] text-white text-[12.5px] font-medium transition-colors shadow-clean-xs"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>+ Add Account</span>
+            </button>
+          )}
+
+          {onOpenUserProfile && (
+            <button
+              type="button"
+              onClick={onOpenUserProfile}
+              className="px-4 py-2 rounded-full border border-[#0A4595] text-[#0A4595] hover:bg-[#EEF3FB] text-[12.5px] font-medium transition-colors"
+            >
+              My Profile
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Success Notification */}
@@ -1566,6 +1699,211 @@ export const AccountManagementView: React.FC<AccountManagementViewProps> = ({
           );
         })}
       </div>
+
+      {/* Add New Account Modal */}
+      {showCreateModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="create-account-title"
+        >
+          <div className="w-full max-w-md rounded-2xl bg-white border border-[#E6E8EE] shadow-clean-lg overflow-hidden text-[#121317]">
+            <div className="px-6 py-4 border-b border-[#E6E8EE] flex items-center justify-between bg-[#F7F8FA]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-[#0A4595] text-white flex items-center justify-center text-[13px] font-semibold">
+                  <UserPlus className="w-4 h-4" />
+                </div>
+                <div>
+                  <h2
+                    id="create-account-title"
+                    className="text-[15px] font-semibold text-[#121317]"
+                  >
+                    Add Corporate Account
+                  </h2>
+                  <p className="text-[11.5px] text-[#6E717A]">
+                    Create new access credentials and team permissions
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreateModal(false)}
+                aria-label="Close"
+                className="p-1.5 rounded-full text-[#6E717A] hover:text-[#121317] hover:bg-[#E6E8EE] transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateSubmit} className="p-6 space-y-4 max-h-[82vh] overflow-y-auto">
+              {createError && (
+                <div
+                  role="alert"
+                  className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-[12.5px] text-rose-700"
+                >
+                  {createError}
+                </div>
+              )}
+
+              <div>
+                <label
+                  htmlFor="new-account-name"
+                  className="block text-[12px] font-medium text-[#45474D] mb-1"
+                >
+                  Full Name
+                </label>
+                <input
+                  id="new-account-name"
+                  type="text"
+                  required
+                  value={createName}
+                  onChange={(e) => setCreateName(e.target.value)}
+                  placeholder="e.g. Victor Nguyen"
+                  className="w-full px-3.5 py-2 rounded-xl border border-[#E6E8EE] focus:border-[#0A4595] text-[13px] text-[#121317] outline-none"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="new-account-email"
+                  className="block text-[12px] font-medium text-[#45474D] mb-1"
+                >
+                  Corporate Email
+                </label>
+                <input
+                  id="new-account-email"
+                  type="text"
+                  required
+                  value={createEmail}
+                  onChange={(e) => setCreateEmail(e.target.value)}
+                  placeholder="victor.nguyen@logtechub.com"
+                  className="w-full px-3.5 py-2 rounded-xl border border-[#E6E8EE] focus:border-[#0A4595] text-[13px] text-[#121317] outline-none font-mono"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="new-account-role"
+                  className="block text-[12px] font-medium text-[#45474D] mb-1"
+                >
+                  Position / Role
+                </label>
+                <select
+                  id="new-account-role"
+                  value={createRole}
+                  onChange={(e) => {
+                    const r = e.target.value as UserProfile['role'];
+                    setCreateRole(r);
+                    if (r === 'Owner') setCreateIsAdmin(true);
+                  }}
+                  className="w-full px-3.5 py-2 rounded-xl border border-[#E6E8EE] focus:border-[#0A4595] text-[13px] text-[#121317] bg-white outline-none"
+                >
+                  {POSITION_CHOICES.map((r) => (
+                    <option key={r} value={r}>
+                      {r} {r === 'Owner' ? '(Full Admin Rights)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="p-3 rounded-xl bg-[#F7F8FA] border border-[#E6E8EE] space-y-2">
+                <label className="flex items-center gap-2 cursor-pointer text-[12.5px] font-medium text-[#121317]">
+                  <input
+                    type="checkbox"
+                    checked={createIsAdmin || createRole === 'Owner'}
+                    disabled={createRole === 'Owner'}
+                    onChange={(e) => setCreateIsAdmin(e.target.checked)}
+                    className="rounded border-[#E6E8EE] text-[#0A4595] focus:ring-[#0A4595]"
+                  />
+                  <span>Admin &amp; Owner Privileges</span>
+                </label>
+                <p className="text-[11px] text-[#6E717A] ml-5">
+                  Allows managing teams, editing directory accounts, and project administration.
+                </p>
+              </div>
+
+              {teams.length > 0 && (
+                <div>
+                  <label className="block text-[12px] font-medium text-[#45474D] mb-1.5">
+                    Assign to Teams
+                  </label>
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto p-2 rounded-xl border border-[#E6E8EE] bg-[#F7F8FA]">
+                    {teams.map((tm) => {
+                      const isChecked = createTeamIds.includes(tm.id);
+                      return (
+                        <label
+                          key={tm.id}
+                          className="flex items-center justify-between p-1.5 rounded-lg hover:bg-white text-[12px] cursor-pointer"
+                        >
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {
+                                setCreateTeamIds((prev) =>
+                                  isChecked
+                                    ? prev.filter((id) => id !== tm.id)
+                                    : [...prev, tm.id]
+                                );
+                              }}
+                              className="rounded border-[#E6E8EE] text-[#0A4595] focus:ring-[#0A4595]"
+                            />
+                            <span className="font-medium text-[#121317]">
+                              {tm.icon || '🏢'} {tm.name}
+                            </span>
+                          </div>
+                          <span className="text-[10.5px] text-[#6E717A] font-mono">
+                            {tm.code}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label
+                  htmlFor="new-account-password"
+                  className="block text-[12px] font-medium text-[#45474D] mb-1"
+                >
+                  Initial Password (Optional)
+                </label>
+                <input
+                  id="new-account-password"
+                  type="text"
+                  value={createPassword}
+                  onChange={(e) => setCreatePassword(e.target.value)}
+                  placeholder={`Defaults to <username>${currentYear}`}
+                  className="w-full px-3.5 py-2 rounded-xl border border-[#E6E8EE] focus:border-[#0A4595] text-[13px] text-[#121317] outline-none font-mono"
+                />
+                <p className="text-[11px] text-[#6E717A] mt-1">
+                  Leave blank to auto-generate standard corporate format (<span className="font-mono text-[#0A4595]">&lt;username&gt;{currentYear}</span>).
+                </p>
+              </div>
+
+              <div className="pt-3 border-t border-[#E6E8EE] flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  disabled={isSubmittingCreate}
+                  className="px-4 py-2 rounded-full border border-[#E6E8EE] hover:bg-[#F1F3F7] text-[13px] font-medium text-[#45474D] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingCreate}
+                  className="px-5 py-2 rounded-full bg-[#0A4595] hover:bg-[#1264D4] disabled:opacity-60 text-white text-[13px] font-medium transition-colors"
+                >
+                  {isSubmittingCreate ? 'Creating...' : 'Create Account'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

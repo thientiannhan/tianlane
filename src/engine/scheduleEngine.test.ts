@@ -169,11 +169,23 @@ const teamEfms = SEED_TEAMS[1];
 
 assert.equal(isUserAdmin(creatorUser), true, 'James Nhan should be Admin');
 assert.equal(isUserAdmin(secondOwner), false, 'Azura Thuy is not Admin');
+
+// Test Owner position role grants admin privileges
+const customOwnerUser: UserProfile = {
+  ...writerUser,
+  id: 'usr-new-owner',
+  role: 'Owner',
+};
+assert.equal(isUserAdmin(customOwnerUser), true, 'User with Owner role should have Admin privileges');
+
 assert.equal(isUserTeamPM(teamControlTower, creatorUser), true);
 assert.equal(isUserTeamPM(teamEfms, secondOwner), true, 'Azura is PM of eFMS team');
 assert.equal(isUserTeamPM(teamControlTower, viewerUser), false);
 
 assert.equal(canUserAccessTeam(teamControlTower, creatorUser), true);
 assert.equal(canUserAccessTeam(teamControlTower, writerUser), true);
+
+// Test Project avatar logo field
+assert.ok(SEED_PROJECTS[0].avatar_url, 'Seed project should have avatar URL');
 
 console.log('✓ All Tianlane scheduleEngine, RBAC, Multi-Team Access, R2 Presigner & Odoo MCP assertions passed.');
