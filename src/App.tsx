@@ -1,18 +1,25 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import type {
-  BaselineRevisionEntry,
-  KanbanStatus,
-  McpExecutionLog,
-  Project,
-  ProjectDocRequirement,
-  ProjectDocument,
-  ProjectMilestone,
-  ProjectTask,
-  ProjectTemplate,
-  UserProfile,
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  canUserEditProject,
+  getApiBaseUrl,
+  isProjectCreator,
+  type BaselineRevisionEntry,
+  type KanbanStatus,
+  type McpExecutionLog,
+  type OdooConnectionConfig,
+  type Project,
+  type ProjectDocRequirement,
+  type ProjectDocument,
+  type ProjectMember,
+  type ProjectMemberRole,
+  type ProjectMilestone,
+  type ProjectTask,
+  type ProjectTemplate,
+  type UserProfile,
 } from './types.ts';
 import {
   DEFAULT_ODOO_BASE_URL,
+  DEFAULT_ODOO_CONFIG,
   REFERENCE_TODAY_ISO,
   SEED_DOC_REQUIREMENTS,
   SEED_DOCUMENTS,
@@ -52,6 +59,8 @@ import {
 import { Sidebar, type SidebarSection } from './components/Sidebar.tsx';
 import { ProjectTopBar } from './components/ProjectTopBar.tsx';
 import { PwaInstallModal } from './components/PwaInstallModal.tsx';
+import { TeamsAuthModal } from './components/TeamsAuthModal.tsx';
+import { ProjectMembersModal } from './components/ProjectMembersModal.tsx';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -59,6 +68,7 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 const STORAGE_KEY = 'tianlane_pm_state_v4';
+const AUTH_STORAGE_KEY = 'tianlane_auth_user_v1';
 
 export const App: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>(() => {
@@ -159,7 +169,34 @@ export const App: React.FC = () => {
     return SEED_TEMPLATES;
   });
 
-  const [showLandingPage, setShowLandingPage] = useState<boolean>(true);
+  const [users, setUsers] = useState<UserProfile[]>(() => {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      try {
+        return JSON.parse(raw).users ?? SEED_USERS;
+      } catch {
+        return SEED_USERS;
+      }
+    }
+    return SEED_USERS;
+  });
+
+  const [currentUser, setCurrentUser] = useState<UserProfile>(() => {
+    const saved = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (saved) {
+      try {
+        return JSON.parse(saved) as UserProfile;
+      } catch {
+        return SEED_USERS[0];
+      }
+    }
+    return SEED_USERS[0];
+  });
+
+  const [showLandingPage, setShowLandingPage] = useState<boolean>(() => {
+    return !localStorage.getItem(AUTH_STORAGE_KEY);
+  });
+
   const [activeSection, setActiveSection] = useState<SidebarSection>('projects');
   const [activeProjectId, setActiveProjectId] = useState<string>(
     () => projects[0]?.id ?? SEED_PROJECTS[0].id
@@ -185,8 +222,9 @@ export const App: React.FC = () => {
     properties: { ...DEFAULT_DISPLAY_PROPERTIES },
   });
 
-  const [currentUser, setCurrentUser] = useState<UserProfile>(SEED_USERS[0]);
   const [odooBaseUrl, setOdooBaseUrl] = useState<string>(DEFAULT_ODOO_BASE_URL);
+  const [odooConfig, setOdooConfig] =
+    useState<OdooConnectionConfig>(DEFAULT_ODOO_CONFIG);
 
   const [selectedTask, setSelectedTask] = useState<ProjectTask | null>(null);
   const [selectedMilestone, setSelectedMilestone] =
@@ -194,25 +232,107 @@ export const App: React.FC = () => {
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState<boolean>(false);
   const [isEditProjectModalOpen, setIsEditProjectModalOpen] =
     useState<boolean>(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+  const [isMembersModalOpen, setIsMembersModalOpen] = useState<boolean>(false);
   const [isPwaGuideOpen, setIsPwaGuideOpen] = useState<boolean>(false);
   const [deferredPwaPrompt, setDeferredPwaPrompt] =
     useState<BeforeInstallPromptEvent | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  const [pendingInvite, setPendingInvite] = useState<{
+    projectId: string;
+    token: string;
+    role: ProjectMemberRole;
+  } | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const params = new URLSearchParams(window.location.search);
+    const invToken = params.get('invite');
+    const projId = params.get('project');
+    const rawRole = params.get('role');
+    if (invToken && projId) {
+      const role: ProjectMemberRole =
+        rawRole === 'owner' || rawRole === 'writer' || rawRole === 'viewer'
+          ? rawRole
+          : 'writer';
+      return { projectId: projId, token: invToken, role };
+    }
+    return null;
+  });
+
+  const isCloudHydratedRef = useRef<boolean>(false);
+  const skipNextCloudSaveRef = useRef<boolean>(false);
+
+  // Open Microsoft Teams SSO modal automatically if arriving via invite link while signed out
   useEffect(() => {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        projects,
-        milestones,
-        tasks,
-        documents,
-        docRequirements,
-        revisionLogs,
-        mcpLogs,
-        templates,
+    if (pendingInvite && showLandingPage) {
+      setIsAuthModalOpen(true);
+    }
+  }, [pendingInvite, showLandingPage]);
+
+  // Hydrate multi-user workspace state from Neon PostgreSQL on startup
+  useEffect(() => {
+    let cancelled = false;
+    const apiBase = getApiBaseUrl();
+    fetch(`${apiBase}/api/workspace`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        const remote = data?.state;
+        if (remote && Array.isArray(remote.projects) && remote.projects.length > 0) {
+          skipNextCloudSaveRef.current = true;
+          setProjects(remote.projects);
+          if (Array.isArray(remote.milestones)) setMilestones(remote.milestones);
+          if (Array.isArray(remote.tasks)) setTasks(remote.tasks);
+          if (Array.isArray(remote.documents)) setDocuments(remote.documents);
+          if (Array.isArray(remote.docRequirements))
+            setDocRequirements(remote.docRequirements);
+          if (Array.isArray(remote.revisionLogs))
+            setRevisionLogs(remote.revisionLogs);
+          if (Array.isArray(remote.templates)) setTemplates(remote.templates);
+          if (Array.isArray(remote.users) && remote.users.length > 0)
+            setUsers(remote.users);
+        }
+        isCloudHydratedRef.current = true;
       })
-    );
+      .catch(() => {
+        isCloudHydratedRef.current = true;
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Persist to localStorage & sync to Neon PostgreSQL
+  useEffect(() => {
+    const statePayload = {
+      projects,
+      milestones,
+      tasks,
+      documents,
+      docRequirements,
+      revisionLogs,
+      mcpLogs,
+      templates,
+      users,
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(statePayload));
+
+    if (!isCloudHydratedRef.current) return;
+    if (skipNextCloudSaveRef.current) {
+      skipNextCloudSaveRef.current = false;
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      const apiBase = getApiBaseUrl();
+      fetch(`${apiBase}/api/workspace`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state: statePayload }),
+      }).catch(() => {});
+    }, 350);
+
+    return () => clearTimeout(timer);
   }, [
     projects,
     milestones,
@@ -222,6 +342,7 @@ export const App: React.FC = () => {
     revisionLogs,
     mcpLogs,
     templates,
+    users,
   ]);
 
   useEffect(() => {
@@ -320,6 +441,150 @@ export const App: React.FC = () => {
     return projectMilestones.filter((m) => m.id === filterState.milestoneId);
   }, [projectMilestones, filterState.milestoneId]);
 
+  const requireWriteAccess = (): boolean => {
+    if (!canUserEditProject(activeProject, currentUser)) {
+      showToast(
+        `Quyền hạn [Viewer - Chỉ xem]: Bạn chỉ có quyền xem trên dự án ${activeProject.code}. Vui lòng liên hệ Owner để cấp quyền Writer (Sửa).`
+      );
+      return false;
+    }
+    return true;
+  };
+
+  // Auto-join project when arriving via Invite Link (?project=...&invite=...&role=...)
+  useEffect(() => {
+    if (!pendingInvite || showLandingPage) return;
+    const targetProj = projects.find(
+      (p) =>
+        p.id === pendingInvite.projectId ||
+        p.share_token === pendingInvite.token
+    );
+    if (!targetProj) return;
+
+    if (targetProj.share_token !== pendingInvite.token) {
+      showToast('Link mời tham gia dự án không hợp lệ hoặc đã được làm mới.');
+      setPendingInvite(null);
+      if (typeof window !== 'undefined') {
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+      return;
+    }
+
+    const existingList = targetProj.members || [];
+    const alreadyMember = existingList.find(
+      (m) =>
+        m.user_id === currentUser.id ||
+        m.email.toLowerCase() === currentUser.email.toLowerCase()
+    );
+
+    const roleOrder: Record<ProjectMemberRole, number> = {
+      viewer: 1,
+      writer: 2,
+      owner: 3,
+    };
+
+    let nextMembers = existingList;
+    let grantedRole: ProjectMemberRole = pendingInvite.role;
+
+    if (!alreadyMember) {
+      nextMembers = [
+        ...existingList,
+        {
+          user_id: currentUser.id,
+          email: currentUser.email,
+          full_name: currentUser.full_name,
+          avatar_initials: currentUser.avatar_initials,
+          role: pendingInvite.role,
+          added_at: new Date().toISOString().slice(0, 10),
+          added_by: 'Invite Link',
+        },
+      ];
+    } else if (roleOrder[pendingInvite.role] > roleOrder[alreadyMember.role]) {
+      nextMembers = existingList.map((m) =>
+        m.email.toLowerCase() === currentUser.email.toLowerCase()
+          ? { ...m, role: pendingInvite.role }
+          : m
+      );
+    } else {
+      grantedRole = alreadyMember.role;
+    }
+
+    setProjects((prev) =>
+      prev.map((p) =>
+        p.id === targetProj.id ? { ...p, members: nextMembers } : p
+      )
+    );
+    setActiveProjectId(targetProj.id);
+    setActiveSection('projects');
+    setPendingInvite(null);
+
+    if (typeof window !== 'undefined') {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+
+    showToast(
+      `Đã tham gia dự án ${targetProj.code} · ${targetProj.name} với quyền ${grantedRole.toUpperCase()}!`
+    );
+  }, [pendingInvite, showLandingPage, projects, currentUser]);
+
+  const handleAuthenticatedUser = (authedUser: UserProfile) => {
+    setCurrentUser(authedUser);
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authedUser));
+    setUsers((prev) => {
+      const exists = prev.some(
+        (u) => u.email.toLowerCase() === authedUser.email.toLowerCase()
+      );
+      if (exists) {
+        return prev.map((u) =>
+          u.email.toLowerCase() === authedUser.email.toLowerCase()
+            ? authedUser
+            : u
+        );
+      }
+      return [...prev, authedUser];
+    });
+    setShowLandingPage(false);
+    showToast(
+      `Đã đăng nhập Microsoft Teams: ${authedUser.full_name} (${authedUser.email}).`
+    );
+  };
+
+  const handleSignOut = () => {
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+    setShowLandingPage(true);
+    showToast('Đã đăng xuất phiên làm việc Microsoft Teams.');
+  };
+
+  const handleUpdateProjectMembers = (
+    projectId: string,
+    nextMembers: ProjectMember[],
+    newShareToken?: string,
+    defaultInviteRole?: 'viewer' | 'writer'
+  ) => {
+    setProjects((prev) =>
+      prev.map((p) => {
+        if (p.id !== projectId) return p;
+        return {
+          ...p,
+          members: nextMembers,
+          share_token: newShareToken ?? p.share_token,
+          invite_default_role: defaultInviteRole ?? p.invite_default_role,
+        };
+      })
+    );
+  };
+
+  const handleRegisterNewDirectoryUser = (newUser: UserProfile) => {
+    setUsers((prev) => {
+      if (
+        prev.some((u) => u.email.toLowerCase() === newUser.email.toLowerCase())
+      ) {
+        return prev;
+      }
+      return [...prev, newUser];
+    });
+  };
+
   const syncMilestoneProgress = (
     nextTasks: ProjectTask[],
     targetMilestoneId: string
@@ -334,6 +599,7 @@ export const App: React.FC = () => {
   };
 
   const handleMoveTaskStatus = (taskId: string, newStatus: KanbanStatus) => {
+    if (!requireWriteAccess()) return;
     const target = tasks.find((t) => t.id === taskId);
     if (!target) return;
 
@@ -357,6 +623,7 @@ export const App: React.FC = () => {
   };
 
   const handleUpdateTask = (updated: ProjectTask) => {
+    if (!requireWriteAccess()) return;
     const nextTasks = tasks.map((t) => (t.id === updated.id ? updated : t));
     setTasks(nextTasks);
     syncMilestoneProgress(nextTasks, updated.milestone_id);
@@ -364,6 +631,7 @@ export const App: React.FC = () => {
   };
 
   const handleShiftMilestoneEnd = (milestoneId: string, deltaDays: number) => {
+    if (!requireWriteAccess()) return;
     const ms = milestones.find((m) => m.id === milestoneId);
     if (!ms || !ms.actual_end) return;
 
@@ -398,6 +666,7 @@ export const App: React.FC = () => {
   };
 
   const handleShiftTaskEnd = (taskId: string, deltaDays: number) => {
+    if (!requireWriteAccess()) return;
     const task = tasks.find((t) => t.id === taskId);
     if (!task) return;
     const newEnd = addDaysISO(task.actual_end, deltaDays);
@@ -407,6 +676,7 @@ export const App: React.FC = () => {
   };
 
   const handleUpdateMilestoneIcon = (milestoneId: string, icon: string) => {
+    if (!requireWriteAccess()) return;
     setMilestones((prev) =>
       prev.map((m) => (m.id === milestoneId ? { ...m, icon } : m))
     );
@@ -414,6 +684,7 @@ export const App: React.FC = () => {
   };
 
   const handleToggleMilestoneClosed = (milestoneId: string) => {
+    if (!requireWriteAccess()) return;
     setMilestones((prev) =>
       prev.map((m) =>
         m.id === milestoneId ? { ...m, is_closed: !m.is_closed } : m
@@ -422,6 +693,7 @@ export const App: React.FC = () => {
   };
 
   const handleCommitBaseline = () => {
+    if (!requireWriteAccess()) return;
     const nowIso = new Date().toISOString();
     setProjects((prev) =>
       prev.map((p) =>
@@ -452,6 +724,7 @@ export const App: React.FC = () => {
     status: KanbanStatus,
     title: string
   ) => {
+    if (!requireWriteAccess()) return;
     const ms = milestones.find((m) => m.id === milestoneId);
     const nextIdx = projectTasks.length + 1;
     const code = `${activeProject.code}-T${String(nextIdx).padStart(2, '0')}`;
@@ -509,7 +782,7 @@ export const App: React.FC = () => {
       odooProjectId: payload.odooProjectId,
       odooBaseUrl,
       ownerId: currentUser.id,
-      users: SEED_USERS,
+      users,
     });
 
     let baseNewTasks = result.tasks;
@@ -597,6 +870,7 @@ export const App: React.FC = () => {
     shiftDeltaDays: number;
     previousCode: string;
   }) => {
+    if (!requireWriteAccess()) return;
     const { updatedProject, updatedMilestones, shiftDeltaDays, previousCode } =
       payload;
     const validMsIds = new Set(updatedMilestones.map((m) => m.id));
@@ -645,6 +919,12 @@ export const App: React.FC = () => {
       return;
     }
     const target = projects.find((p) => p.id === projectIdToDelete);
+    if (target && !isProjectCreator(target, currentUser)) {
+      showToast(
+        'Chỉ người tạo Project (Creator Owner) mới có quyền xóa dự án này.'
+      );
+      return;
+    }
     const remaining = projects.filter((p) => p.id !== projectIdToDelete);
 
     setProjects(remaining);
@@ -672,6 +952,7 @@ export const App: React.FC = () => {
   };
 
   const handleSaveDocRequirement = (req: ProjectDocRequirement) => {
+    if (!requireWriteAccess()) return;
     setDocRequirements((prev) => {
       const exists = prev.some((r) => r.id === req.id);
       if (exists) {
@@ -683,11 +964,13 @@ export const App: React.FC = () => {
   };
 
   const handleDeleteDocRequirement = (reqId: string) => {
+    if (!requireWriteAccess()) return;
     setDocRequirements((prev) => prev.filter((r) => r.id !== reqId));
     showToast('Removed document requirement.');
   };
 
   const handleDeleteDocument = (docId: string) => {
+    if (!requireWriteAccess()) return;
     setDocuments((prev) => prev.filter((d) => d.id !== docId));
     showToast('Removed uploaded file.');
   };
@@ -697,7 +980,8 @@ export const App: React.FC = () => {
     message: string;
   }> => {
     try {
-      const res = await fetch('/api/odoo/test', {
+      const apiBase = getApiBaseUrl();
+      const res = await fetch(`${apiBase}/api/odoo/test`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(odooConfig),
@@ -725,6 +1009,9 @@ export const App: React.FC = () => {
     createdCount: number;
     summary: string;
   }> => {
+    if (!requireWriteAccess()) {
+      return { createdCount: 0, summary: 'Read-only access (Viewer).' };
+    }
     const unlinked = projectTasks.filter((t) => !t.odoo_task_id);
     if (unlinked.length === 0) {
       const summary = `All ${projectTasks.length} tasks are already linked to Execution Tracker Project #${activeProject.odoo_project_id}.`;
@@ -734,7 +1021,8 @@ export const App: React.FC = () => {
 
     if (odooConfig.apiKey.trim()) {
       try {
-        const res = await fetch('/api/odoo/generate', {
+        const apiBase = getApiBaseUrl();
+        const res = await fetch(`${apiBase}/api/odoo/generate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -806,11 +1094,15 @@ export const App: React.FC = () => {
   const handleExecuteSyncOdooStatus = async (
     direction: 'odoo_to_app' | 'app_to_odoo'
   ): Promise<{ updatedCount: number; summary: string }> => {
+    if (!requireWriteAccess()) {
+      return { updatedCount: 0, summary: 'Read-only access (Viewer).' };
+    }
     const nowIso = new Date().toISOString();
 
     if (odooConfig.apiKey.trim()) {
       try {
-        const res = await fetch('/api/odoo/sync', {
+        const apiBase = getApiBaseUrl();
+        const res = await fetch(`${apiBase}/api/odoo/sync`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -916,6 +1208,7 @@ export const App: React.FC = () => {
     setRevisionLogs(SEED_REVISION_LOGS);
     setMcpLogs(SEED_MCP_LOGS);
     setTemplates(SEED_TEMPLATES);
+    setUsers(SEED_USERS);
     setActiveProjectId(SEED_PROJECTS[0].id);
     showToast('Restored default demo data.');
   };
@@ -924,14 +1217,21 @@ export const App: React.FC = () => {
     (t) => t.is_gate_blocker && t.kanban_status !== 'done'
   ).length;
 
+  const invitedProjInfo = pendingInvite
+    ? projects.find(
+        (p) =>
+          p.id === pendingInvite.projectId ||
+          p.share_token === pendingInvite.token
+      )
+    : undefined;
+
   return (
     <>
       {showLandingPage ? (
         <LandingPage
-          users={SEED_USERS}
-          onSignInWithTeams={(user) => {
-            setCurrentUser(user);
-            setShowLandingPage(false);
+          users={users}
+          onSignInWithTeams={() => {
+            setIsAuthModalOpen(true);
           }}
           onInstallApp={handleInstallPwaClick}
         />
@@ -951,13 +1251,15 @@ export const App: React.FC = () => {
             inboxBadgeCount={inboxBadgeCount}
             filesCount={projectDocs.length}
             currentUser={currentUser}
-            totalTeamMembers={SEED_USERS.length}
+            totalTeamMembers={users.length}
             onBackToLanding={() => setShowLandingPage(true)}
             onOpenTemplateModal={() => setIsTemplateModalOpen(true)}
             onOpenEditProject={(projId) => {
               setActiveProjectId(projId);
               setIsEditProjectModalOpen(true);
             }}
+            onOpenAuthModal={() => setIsAuthModalOpen(true)}
+            onSignOut={handleSignOut}
             onResetDemo={handleResetDemo}
           />
 
@@ -967,12 +1269,13 @@ export const App: React.FC = () => {
             <ProjectTopBar
               activeSection={activeSection}
               activeProject={activeProject}
+              currentUser={currentUser}
               filterState={filterState}
               onChangeFilter={setFilterState}
               displayState={displayState}
               onChangeDisplay={setDisplayState}
               milestones={projectMilestones}
-              users={SEED_USERS}
+              users={users}
               onResetDisplay={() =>
                 setDisplayState({
                   viewMode: 'timeline',
@@ -986,6 +1289,7 @@ export const App: React.FC = () => {
               onSyncOdoo={() => handleExecuteSyncOdooStatus('odoo_to_app')}
               onInstallApp={handleInstallPwaClick}
               onOpenEditProject={() => setIsEditProjectModalOpen(true)}
+              onOpenMembersModal={() => setIsMembersModalOpen(true)}
             />
 
             {toastMessage && (
@@ -1025,7 +1329,7 @@ export const App: React.FC = () => {
                   project={activeProject}
                   milestones={projectMilestones}
                   tasks={projectTasks}
-                  users={SEED_USERS}
+                  users={users}
                   mcpLogs={mcpLogs}
                   odooConfig={odooConfig}
                   onUpdateOdooConfig={setOdooConfig}
@@ -1048,17 +1352,19 @@ export const App: React.FC = () => {
 
               {activeSection === 'team' && (
                 <TeamView
-                  users={SEED_USERS}
+                  users={users}
                   tasks={tasks}
                   currentUser={currentUser}
+                  activeProject={activeProject}
                   onSelectUserAsCurrent={(u) => {
-                    setCurrentUser(u);
-                    showToast(`Switched active user to ${u.full_name}.`);
+                    handleAuthenticatedUser(u);
                   }}
                   onFilterByMember={(userId) => {
                     setFilterState((prev) => ({ ...prev, assigneeId: userId }));
                     setActiveSection('projects');
                   }}
+                  onOpenMembersModal={() => setIsMembersModalOpen(true)}
+                  onOpenAuthModal={() => setIsAuthModalOpen(true)}
                 />
               )}
 
@@ -1074,6 +1380,7 @@ export const App: React.FC = () => {
                   currentUser={currentUser}
                   referenceTodayISO={REFERENCE_TODAY_ISO}
                   onAddDocument={(doc) => {
+                    if (!requireWriteAccess()) return;
                     const newDoc: ProjectDocument = {
                       ...doc,
                       id: `doc-${Date.now()}`,
@@ -1110,7 +1417,7 @@ export const App: React.FC = () => {
                       project={activeProject}
                       milestones={filteredMilestones}
                       tasks={filteredTasks}
-                      users={SEED_USERS}
+                      users={users}
                       documents={projectDocs}
                       docRequirements={projectDocRequirements}
                       revisionLogs={projectRevisions}
@@ -1137,7 +1444,7 @@ export const App: React.FC = () => {
                     <KanbanView
                       milestones={filteredMilestones}
                       tasks={filteredTasks}
-                      users={SEED_USERS}
+                      users={users}
                       groupByMilestone={displayState.groupByMilestone}
                       showEmptyColumns={displayState.showEmptyColumns}
                       displayProperties={displayState.properties}
@@ -1180,7 +1487,7 @@ export const App: React.FC = () => {
         selectedMilestone={selectedMilestone}
         milestones={projectMilestones}
         tasks={projectTasks}
-        users={SEED_USERS}
+        users={users}
         documents={projectDocs}
         odooBaseUrl={odooBaseUrl}
         currentUser={currentUser}
@@ -1191,6 +1498,7 @@ export const App: React.FC = () => {
         onUpdateTask={handleUpdateTask}
         onToggleMilestoneClosed={handleToggleMilestoneClosed}
         onAddDocument={(doc) => {
+          if (!requireWriteAccess()) return;
           const newDoc: ProjectDocument = {
             ...doc,
             id: `doc-${Date.now()}`,
@@ -1205,6 +1513,8 @@ export const App: React.FC = () => {
       <TemplateModal
         isOpen={isTemplateModalOpen}
         templates={templates}
+        users={users}
+        currentUser={currentUser}
         referenceTodayISO={REFERENCE_TODAY_ISO}
         onClose={() => setIsTemplateModalOpen(false)}
         onInstantiate={handleInstantiateFromTemplate}
@@ -1217,9 +1527,39 @@ export const App: React.FC = () => {
         milestones={projectMilestones}
         totalProjectsCount={projects.length}
         odooBaseUrl={odooBaseUrl}
+        canDeleteProject={isProjectCreator(activeProject, currentUser)}
         onClose={() => setIsEditProjectModalOpen(false)}
         onSaveProject={handleSaveProject}
         onDeleteProject={handleDeleteProject}
+      />
+
+      {/* Project Share, Invite Link & Role Permissions Modal */}
+      <ProjectMembersModal
+        isOpen={isMembersModalOpen}
+        project={activeProject}
+        currentUser={currentUser}
+        directoryUsers={users}
+        onClose={() => setIsMembersModalOpen(false)}
+        onUpdateProjectMembers={handleUpdateProjectMembers}
+        onRegisterNewDirectoryUser={handleRegisterNewDirectoryUser}
+      />
+
+      {/* Microsoft Teams (@logtechub.com) SSO Modal */}
+      <TeamsAuthModal
+        isOpen={isAuthModalOpen}
+        users={users}
+        currentUser={currentUser}
+        pendingInvite={
+          pendingInvite
+            ? {
+                ...pendingInvite,
+                projectName: invitedProjInfo?.name,
+                projectCode: invitedProjInfo?.code,
+              }
+            : null
+        }
+        onClose={() => setIsAuthModalOpen(false)}
+        onAuthenticated={handleAuthenticatedUser}
       />
 
       {/* PWA Desktop Installation Modal */}

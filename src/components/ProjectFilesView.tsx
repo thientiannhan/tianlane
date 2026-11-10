@@ -11,13 +11,14 @@ import {
   Upload,
   X,
 } from 'lucide-react';
-import type {
-  Project,
-  ProjectDocRequirement,
-  ProjectDocument,
-  ProjectMilestone,
-  ProjectTask,
-  UserProfile,
+import {
+  getApiBaseUrl,
+  type Project,
+  type ProjectDocRequirement,
+  type ProjectDocument,
+  type ProjectMilestone,
+  type ProjectTask,
+  type UserProfile,
 } from '../types.ts';
 
 interface ProjectFilesViewProps {
@@ -163,13 +164,7 @@ export const ProjectFilesView: React.FC<ProjectFilesViewProps> = ({
     )}`;
 
     try {
-      const apiBase =
-        import.meta.env.VITE_API_URL ||
-        (typeof window !== 'undefined' &&
-        (window.location.hostname.includes('workers.dev') ||
-          window.location.hostname.includes('pages.dev'))
-          ? 'https://tianlane.onrender.com'
-          : '');
+      const apiBase = getApiBaseUrl();
       const presignRes = await fetch(`${apiBase}/api/storage/presign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

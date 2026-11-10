@@ -1,3 +1,7 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import pg from 'pg';
 import { createR2PresignedPutUrl } from './r2Presign.mjs';
 import {
   DEFAULT_ODOO_CONNECTION,
@@ -5,6 +9,62 @@ import {
   syncOdooTasks,
   testOdooConnection,
 } from './odooClient.mjs';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+let envLoaded = false;
+function ensureEnvLoaded() {
+  if (envLoaded) return;
+  envLoaded = true;
+  const envPath = path.resolve(__dirname, '../.env');
+  if (fs.existsSync(envPath)) {
+    const raw = fs.readFileSync(envPath, 'utf8');
+    for (const line of raw.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const eqIdx = trimmed.indexOf('=');
+      if (eqIdx > 0) {
+        const key = trimmed.slice(0, eqIdx).trim();
+        let val = trimmed.slice(eqIdx + 1).trim();
+        if (
+          (val.startsWith('"') && val.endsWith('"')) ||
+          (val.startsWith("'") && val.endsWith("'"))
+        ) {
+          val = val.slice(1, -1);
+        }
+        if (!process.env[key]) process.env[key] = val;
+      }
+    }
+  }
+}
+
+let dbPool = null;
+let dbSchemaReady = false;
+
+async function getDbPool() {
+  ensureEnvLoaded();
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl || dbUrl.includes('ep-cool-darkness')) return null;
+  if (!dbPool) {
+    dbPool = new pg.Pool({
+      connectionString: dbUrl,
+      ssl: { rejectUnauthorized: false },
+      max: 3,
+      idleTimeoutMillis: 10000, // Release idle connections quickly so Neon scales to zero
+      connectionTimeoutMillis: 8000,
+    });
+  }
+  if (!dbSchemaReady) {
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS workspace_state_store (
+        id VARCHAR(32) PRIMARY KEY,
+        state_json JSONB NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+    dbSchemaReady = true;
+  }
+  return dbPool;
+}
 
 export const MCP_TOOLS_MANIFEST = [
   {
@@ -127,7 +187,7 @@ function readJsonBody(req) {
 }
 
 function sendJson(res, statusCode, data, reqOrigin) {
-  const allowedOrigin = process.env.FRONTEND_URL || reqOrigin || '*';
+  const allowedOrigin = reqOrigin || process.env.FRONTEND_URL || '*';
   res.statusCode = statusCode;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
@@ -197,6 +257,180 @@ export async function handleApiAndHealthRequest(req, res) {
       },
       reqOrigin
     );
+    return true;
+  }
+
+  // 2b. LOGTECHUB MICROSOFT TEAMS / ENTRA ID AUTHENTICATION & DIRECTORY SYNC
+  if (pathname === '/api/auth/teams' && req.method === 'POST') {
+    try {
+      const body = await readJsonBody(req);
+      const rawEmail = String(body.email || '').trim().toLowerCase();
+      if (!rawEmail || !rawEmail.includes('@')) {
+        sendJson(
+          res,
+          400,
+          { error: 'Vui lòng nhập email tài khoản Microsoft Teams hợp lệ.' },
+          reqOrigin
+        );
+        return true;
+      }
+
+      const isLogtechub = rawEmail.endsWith('@logtechub.com');
+      if (!isLogtechub && !body.allowInvitedExternal) {
+        sendJson(
+          res,
+          403,
+          {
+            error:
+              'Chỉ cho phép đăng nhập bằng tài khoản Microsoft Teams của Logtechub (@logtechub.com) hoặc tài khoản được mời vào Project.',
+          },
+          reqOrigin
+        );
+        return true;
+      }
+
+      const localPart = rawEmail.split('@')[0] || 'member';
+      const derivedName = localPart
+        .split(/[._-]+/)
+        .filter(Boolean)
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(' ');
+      const fullName = String(body.fullName || '').trim() || derivedName || 'Logtechub Member';
+      const initials = fullName
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((w) => w.charAt(0).toUpperCase())
+        .join('') || 'LT';
+      const role = body.role || 'Product Owner';
+      const userId =
+        body.id || `usr-${localPart.replace(/[^a-z0-9]/g, '-')}`;
+      const entraId =
+        body.microsoftEntraId || `entra-logtechub-${localPart.replace(/[^a-z0-9]/g, '-')}`;
+
+      const userProfile = {
+        id: userId,
+        microsoft_entra_id: entraId,
+        full_name: fullName,
+        email: rawEmail,
+        avatar_initials: initials,
+        role,
+        teams_status: 'available',
+        teams_webhook_url: 'https://outlook.office.com/webhook/logtechub-teams',
+      };
+
+      const pool = await getDbPool();
+      if (pool) {
+        await pool.query(
+          `INSERT INTO users_directory (id, microsoft_entra_id, full_name, email, avatar_initials, role, teams_status, teams_webhook_url)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           ON CONFLICT (email) DO UPDATE SET
+             full_name = EXCLUDED.full_name,
+             avatar_initials = EXCLUDED.avatar_initials,
+             role = EXCLUDED.role,
+             teams_status = 'available'`,
+          [
+            userProfile.id,
+            userProfile.microsoft_entra_id,
+            userProfile.full_name,
+            userProfile.email,
+            userProfile.avatar_initials,
+            userProfile.role,
+            userProfile.teams_status,
+            userProfile.teams_webhook_url,
+          ]
+        );
+      }
+
+      sendJson(
+        res,
+        200,
+        { authenticated: true, tenant: 'logtechub.com', user: userProfile },
+        reqOrigin
+      );
+    } catch (err) {
+      sendJson(
+        res,
+        500,
+        { error: err instanceof Error ? err.message : 'Teams SSO authentication failed' },
+        reqOrigin
+      );
+    }
+    return true;
+  }
+
+  // 2c. NEON POSTGRESQL MULTI-USER WORKSPACE STATE SYNC (GET / PUT / POST)
+  if (pathname === '/api/workspace' && req.method === 'GET') {
+    try {
+      const pool = await getDbPool();
+      if (!pool) {
+        sendJson(res, 200, { synced: false, state: null }, reqOrigin);
+        return true;
+      }
+      const result = await pool.query(
+        `SELECT state_json, updated_at FROM workspace_state_store WHERE id = 'default' LIMIT 1`
+      );
+      const row = result.rows[0];
+      sendJson(
+        res,
+        200,
+        {
+          synced: true,
+          state: row ? row.state_json : null,
+          updatedAt: row ? row.updated_at : null,
+        },
+        reqOrigin
+      );
+    } catch (err) {
+      sendJson(
+        res,
+        500,
+        { synced: false, error: err instanceof Error ? err.message : 'DB read failed' },
+        reqOrigin
+      );
+    }
+    return true;
+  }
+
+  if (
+    pathname === '/api/workspace' &&
+    (req.method === 'PUT' || req.method === 'POST')
+  ) {
+    try {
+      const body = await readJsonBody(req);
+      const state = body.state;
+      if (!state || typeof state !== 'object') {
+        sendJson(res, 400, { error: 'Missing workspace state payload' }, reqOrigin);
+        return true;
+      }
+      const pool = await getDbPool();
+      if (!pool) {
+        sendJson(res, 200, { synced: false }, reqOrigin);
+        return true;
+      }
+      const result = await pool.query(
+        `INSERT INTO workspace_state_store (id, state_json, updated_at)
+         VALUES ('default', $1::jsonb, NOW())
+         ON CONFLICT (id) DO UPDATE SET
+           state_json = EXCLUDED.state_json,
+           updated_at = NOW()
+         RETURNING updated_at`,
+        [JSON.stringify(state)]
+      );
+      sendJson(
+        res,
+        200,
+        { synced: true, updatedAt: result.rows[0]?.updated_at },
+        reqOrigin
+      );
+    } catch (err) {
+      sendJson(
+        res,
+        500,
+        { synced: false, error: err instanceof Error ? err.message : 'DB write failed' },
+        reqOrigin
+      );
+    }
     return true;
   }
 

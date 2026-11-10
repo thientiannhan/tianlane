@@ -5,17 +5,18 @@ import {
   Plus,
   Send,
 } from 'lucide-react';
-import type {
-  BaselineRevisionEntry,
-  McpExecutionLog,
-  McpToolName,
-  OdooConnectionConfig,
-  Project,
-  ProjectMilestone,
-  ProjectTask,
-  ProjectTemplate,
-  TaskPriority,
-  UserProfile,
+import {
+  getUserProjectRole,
+  type BaselineRevisionEntry,
+  type McpExecutionLog,
+  type McpToolName,
+  type OdooConnectionConfig,
+  type Project,
+  type ProjectMilestone,
+  type ProjectTask,
+  type ProjectTemplate,
+  type TaskPriority,
+  type UserProfile,
 } from '../types.ts';
 import { diffDaysISO } from '../engine/scheduleEngine.ts';
 
@@ -661,29 +662,54 @@ interface TeamViewProps {
   users: UserProfile[];
   tasks: ProjectTask[];
   currentUser: UserProfile;
+  activeProject?: Project;
   onSelectUserAsCurrent: (user: UserProfile) => void;
   onFilterByMember: (userId: string) => void;
+  onOpenMembersModal?: () => void;
+  onOpenAuthModal?: () => void;
 }
 
 export const TeamView: React.FC<TeamViewProps> = ({
   users,
   tasks,
   currentUser,
+  activeProject,
   onSelectUserAsCurrent,
   onFilterByMember,
+  onOpenMembersModal,
+  onOpenAuthModal,
 }) => {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <div className="flex items-center justify-between border-b border-[#E6E8EE] pb-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#E6E8EE] pb-4">
         <div>
-          <h1 className="text-[20px] font-medium text-[#121317]">Your team</h1>
+          <h1 className="text-[20px] font-medium text-[#121317]">
+            Logtechub Directory &amp; Project Access
+          </h1>
           <p className="text-[13px] text-[#45474D]">
-            Synced via Microsoft Entra ID (Microsoft Teams)
+            Đồng bộ tài khoản Microsoft Teams (@logtechub.com) &amp; phân quyền theo từng Project
           </p>
         </div>
-        <span className="text-[12.5px] text-[#45474D] tabular-nums">
-          {users.length} members
-        </span>
+        <div className="flex items-center gap-2">
+          {onOpenAuthModal && (
+            <button
+              type="button"
+              onClick={onOpenAuthModal}
+              className="px-3.5 py-1.5 rounded-full border border-[#E6E8EE] hover:border-[#0A4595] bg-white text-[12.5px] font-medium text-[#121317] transition-colors"
+            >
+              Đăng nhập / Thêm TK Teams
+            </button>
+          )}
+          {onOpenMembersModal && activeProject && (
+            <button
+              type="button"
+              onClick={onOpenMembersModal}
+              className="px-4 py-1.5 rounded-full bg-[#0A4595] hover:bg-[#1264D4] text-white text-[12.5px] font-medium transition-colors"
+            >
+              Phân quyền &amp; Link Invite ({activeProject.code})
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="divide-y divide-[#E6E8EE] rounded-2xl border border-[#E6E8EE] bg-white">
@@ -693,6 +719,9 @@ export const TeamView: React.FC<TeamViewProps> = ({
             (t) => t.kanban_status === 'done'
           ).length;
           const isCurrent = member.id === currentUser.id;
+          const projRole = activeProject
+            ? getUserProjectRole(activeProject, member)
+            : 'viewer';
 
           return (
             <div
@@ -711,15 +740,30 @@ export const TeamView: React.FC<TeamViewProps> = ({
                   />
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-[14px] font-medium text-[#121317]">
                       {member.full_name}
                     </span>
                     <span className="text-[12px] text-[#45474D]">
                       · {member.role}
                     </span>
+                    {activeProject && (
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10.5px] font-semibold uppercase ${
+                          projRole === 'owner'
+                            ? 'bg-amber-100 text-amber-800'
+                            : projRole === 'writer'
+                            ? 'bg-[#EEF3FB] text-[#0A4595]'
+                            : 'bg-[#F1F3F7] text-[#45474D]'
+                        }`}
+                      >
+                        {activeProject.code}: {projRole}
+                      </span>
+                    )}
                   </div>
-                  <div className="text-[12px] text-[#45474D]">{member.email}</div>
+                  <div className="text-[12px] font-mono text-[#45474D]">
+                    {member.email}
+                  </div>
                 </div>
               </div>
 

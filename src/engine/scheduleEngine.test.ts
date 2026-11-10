@@ -9,9 +9,18 @@ import {
   mapOdooStageToKanban,
   validateAttachmentFileSize,
 } from './scheduleEngine.ts';
-import { SEED_TEMPLATES, SEED_USERS } from '../data/seedData.ts';
+import { SEED_PROJECTS, SEED_TEMPLATES, SEED_USERS } from '../data/seedData.ts';
+import {
+  canUserEditProject,
+  canUserManageMembers,
+  getUserProjectRole,
+  isProjectCreator,
+} from '../types.ts';
+// @ts-expect-error .mjs server module
 import { createR2PresignedPutUrl } from '../../server/r2Presign.mjs';
+// @ts-expect-error .mjs server module
 import { mapOdooStageToKanbanStatus } from '../../server/odooClient.mjs';
+// @ts-expect-error .mjs server module
 import { MCP_TOOLS_MANIFEST } from '../../server/apiRouter.mjs';
 
 // 1. Test relative day offset & Baseline vs Actual variance calculation
@@ -94,4 +103,21 @@ assert.equal(mapOdooStageToKanbanStatus('Sprint Complete'), 'done');
 assert.equal(mapOdooStageToKanbanStatus('Deployed in Production'), 'done');
 assert.equal(MCP_TOOLS_MANIFEST.length, 6, 'Should expose all 6 PO governance MCP tools');
 
-console.log('✓ All Tianlane scheduleEngine, R2 Presigner & Odoo MCP self-check assertions passed.');
+// 9. Test Project RBAC (Owner / Writer / Viewer & Creator Owner protection)
+const p0 = SEED_PROJECTS[0];
+const creatorUser = SEED_USERS[0]; // james.nhan@logtechub.com (Creator Owner)
+const writerUser = SEED_USERS[1]; // minh.quan@logtechub.com (Writer)
+const viewerUser = SEED_USERS[4]; // thao.linh@logtechub.com (Viewer)
+
+assert.equal(isProjectCreator(p0, creatorUser), true);
+assert.equal(isProjectCreator(p0, writerUser), false);
+assert.equal(getUserProjectRole(p0, creatorUser), 'owner');
+assert.equal(getUserProjectRole(p0, writerUser), 'writer');
+assert.equal(getUserProjectRole(p0, viewerUser), 'viewer');
+assert.equal(canUserEditProject(p0, creatorUser), true);
+assert.equal(canUserEditProject(p0, writerUser), true);
+assert.equal(canUserEditProject(p0, viewerUser), false);
+assert.equal(canUserManageMembers(p0, creatorUser), true);
+assert.equal(canUserManageMembers(p0, writerUser), false);
+
+console.log('✓ All Tianlane scheduleEngine, RBAC, R2 Presigner & Odoo MCP self-check assertions passed.');

@@ -16,6 +16,7 @@ interface ProjectEditModalProps {
   milestones: ProjectMilestone[];
   totalProjectsCount: number;
   odooBaseUrl: string;
+  canDeleteProject?: boolean;
   onClose: () => void;
   onSaveProject: (payload: {
     updatedProject: Project;
@@ -34,6 +35,7 @@ export const ProjectEditModal: React.FC<ProjectEditModalProps> = ({
   milestones,
   totalProjectsCount,
   odooBaseUrl,
+  canDeleteProject = true,
   onClose,
   onSaveProject,
   onDeleteProject,
@@ -477,13 +479,15 @@ export const ProjectEditModal: React.FC<ProjectEditModalProps> = ({
                 <span>Delete this project</span>
               </div>
               <p className="text-[12px] text-rose-600/90">
-                {totalProjectsCount <= 1
+                {!canDeleteProject
+                  ? 'Chỉ người tạo Project (Creator Owner) mới có quyền xóa dự án này.'
+                  : totalProjectsCount <= 1
                   ? 'At least one project must remain in the workspace.'
                   : 'Remove this project along with its milestones, tasks, and attached deliverables.'}
               </p>
             </div>
 
-            {totalProjectsCount > 1 && (
+            {canDeleteProject && totalProjectsCount > 1 && (
               <div>
                 {!confirmDelete ? (
                   <button

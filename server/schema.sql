@@ -122,3 +122,12 @@ CREATE TABLE IF NOT EXISTS baselines_and_docs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_baselines_docs_project ON baselines_and_docs(project_id, record_type);
+
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS members_json JSONB NOT NULL DEFAULT '[]'::jsonb;
+
+-- 7. workspace_state_store (Real-time Multi-User Collaboration & Invite Sync on Neon)
+CREATE TABLE IF NOT EXISTS workspace_state_store (
+  id VARCHAR(32) PRIMARY KEY,
+  state_json JSONB NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

@@ -224,6 +224,7 @@ export function instantiateProjectFromTemplateEngine(params: {
   } = params;
 
   const projectId = `proj-${Date.now()}`;
+  const creatorUser = users.find((u) => u.id === ownerId) ?? users[0];
   const project: Project = {
     id: projectId,
     code: projectCode,
@@ -238,7 +239,21 @@ export function instantiateProjectFromTemplateEngine(params: {
     start_date: startDateISO,
     baseline_committed: true,
     baseline_committed_at: new Date().toISOString(),
-    share_token: `tl-${projectCode.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
+    share_token: `tl-${projectCode.toLowerCase().replace(/[^a-z0-9]/g, '')}-${Math.random().toString(36).slice(2, 7)}`,
+    invite_default_role: 'writer',
+    members: creatorUser
+      ? [
+          {
+            user_id: creatorUser.id,
+            email: creatorUser.email,
+            full_name: creatorUser.full_name,
+            avatar_initials: creatorUser.avatar_initials,
+            role: 'owner',
+            added_at: new Date().toISOString().slice(0, 10),
+            added_by: creatorUser.full_name,
+          },
+        ]
+      : [],
   };
 
   const milestoneKeyToId = new Map<string, string>();

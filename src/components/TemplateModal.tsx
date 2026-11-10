@@ -7,8 +7,9 @@ interface TemplateModalProps {
   isOpen: boolean;
   onClose: () => void;
   templates: ProjectTemplate[];
-  users: UserProfile[];
-  currentUser: UserProfile;
+  users?: UserProfile[];
+  currentUser?: UserProfile;
+  referenceTodayISO?: string;
   onInstantiate: (payload: {
     template: ProjectTemplate;
     projectName: string;

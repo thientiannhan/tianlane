@@ -4,6 +4,7 @@ import {
   ChevronDown,
   FolderOpen,
   Inbox,
+  LogOut,
   Pencil,
   Plus,
   RotateCcw,
@@ -13,7 +14,7 @@ import {
   SquarePen,
   Users,
 } from 'lucide-react';
-import type { Project, UserProfile } from '../types.ts';
+import { getUserProjectRole, type Project, type UserProfile } from '../types.ts';
 
 export type SidebarSection =
   | 'inbox'
@@ -40,6 +41,8 @@ interface SidebarProps {
   onBackToLanding: () => void;
   onOpenTemplateModal: () => void;
   onOpenEditProject: (projectId: string) => void;
+  onOpenAuthModal?: () => void;
+  onSignOut?: () => void;
   onResetDemo: () => void;
 }
 
@@ -60,6 +63,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onBackToLanding,
   onOpenTemplateModal,
   onOpenEditProject,
+  onOpenAuthModal,
+  onSignOut,
   onResetDemo,
 }) => {
   return (
@@ -203,6 +208,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {projects.map((proj) => {
                   const isSelected =
                     activeSection === 'projects' && proj.id === activeProjectId;
+                  const myRole = getUserProjectRole(proj, currentUser);
                   return (
                     <div
                       key={proj.id}
@@ -223,22 +229,40 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         {proj.name}
                       </button>
                       <div className="flex items-center gap-1 shrink-0">
+                        <span
+                          title={`Quyền của bạn: ${myRole.toUpperCase()}`}
+                          className={`px-1.5 py-0.2 rounded text-[9.5px] font-semibold uppercase ${
+                            myRole === 'owner'
+                              ? 'bg-amber-100 text-amber-800'
+                              : myRole === 'writer'
+                              ? 'bg-[#EEF3FB] text-[#0A4595]'
+                              : 'bg-gray-200 text-gray-600'
+                          }`}
+                        >
+                          {myRole === 'owner'
+                            ? 'Owner'
+                            : myRole === 'writer'
+                            ? 'Writer'
+                            : 'View'}
+                        </span>
                         <span className="font-mono text-[11px] text-[#6E717A]">
                           {proj.code}
                         </span>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onSelectProject(proj.id);
-                            onOpenEditProject(proj.id);
-                          }}
-                          title="Edit or delete project"
-                          aria-label={`Edit ${proj.name}`}
-                          className="p-1 rounded text-[#6E717A] hover:text-[#0A4595] hover:bg-[#ECEEF3] opacity-75 group-hover:opacity-100 transition-opacity"
-                        >
-                          <Pencil className="w-3 h-3" aria-hidden="true" />
-                        </button>
+                        {myRole !== 'viewer' && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelectProject(proj.id);
+                              onOpenEditProject(proj.id);
+                            }}
+                            title="Edit or delete project"
+                            aria-label={`Edit ${proj.name}`}
+                            className="p-1 rounded text-[#6E717A] hover:text-[#0A4595] hover:bg-[#ECEEF3] opacity-75 group-hover:opacity-100 transition-opacity"
+                          >
+                            <Pencil className="w-3 h-3" aria-hidden="true" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
@@ -365,27 +389,45 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="text-[12.5px] font-medium text-[#121317] truncate">
               {currentUser.full_name}
             </div>
+            <div className="text-[10.5px] font-mono text-[#0A4595] truncate">
+              {currentUser.email}
+            </div>
             <div className="text-[11px] text-[#6E717A] truncate">
               {currentUser.role}
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => onSelectSection('team')}
-            className="px-2.5 py-1 rounded-full border border-[#E6E8EE] bg-white hover:border-[#B7BFD9] text-[11px] text-[#45474D] hover:text-[#121317] shrink-0"
-          >
-            Team
-          </button>
+          {onOpenAuthModal && (
+            <button
+              type="button"
+              onClick={onOpenAuthModal}
+              className="px-2.5 py-1 rounded-full border border-[#E6E8EE] bg-white hover:border-[#0A4595] text-[11px] text-[#0A4595] font-medium shrink-0"
+            >
+              Đổi TK
+            </button>
+          )}
         </div>
 
-        <button
-          type="button"
-          onClick={onResetDemo}
-          className="w-full py-1.5 px-3 rounded-full border border-[#E6E8EE] bg-white hover:border-[#B7BFD9] text-[11.5px] text-[#45474D] hover:text-[#121317] flex items-center justify-center gap-1.5 transition-colors"
-        >
-          <RotateCcw className="w-3 h-3" aria-hidden="true" />
-          <span>Reset demo</span>
-        </button>
+        <div className="grid grid-cols-2 gap-1.5">
+          {onSignOut && (
+            <button
+              type="button"
+              onClick={onSignOut}
+              className="py-1.5 px-2.5 rounded-full border border-[#E6E8EE] bg-white hover:border-rose-300 text-[11.5px] text-[#45474D] hover:text-rose-700 flex items-center justify-center gap-1 transition-colors"
+            >
+              <LogOut className="w-3 h-3" aria-hidden="true" />
+              <span>Đăng xuất</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={onResetDemo}
+            className="py-1.5 px-2.5 rounded-full border border-[#E6E8EE] bg-white hover:border-[#B7BFD9] text-[11.5px] text-[#45474D] hover:text-[#121317] flex items-center justify-center gap-1 transition-colors col-span-1"
+          >
+            <RotateCcw className="w-3 h-3" aria-hidden="true" />
+            <span>Reset</span>
+          </button>
+        </div>
       </div>
     </aside>
   );

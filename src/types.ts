@@ -132,6 +132,18 @@ export interface BaselineRevisionEntry {
   created_at: string;
 }
 
+export type ProjectMemberRole = 'owner' | 'writer' | 'viewer';
+
+export interface ProjectMember {
+  user_id: string;
+  email: string;
+  full_name: string;
+  avatar_initials: string;
+  role: ProjectMemberRole;
+  added_at: string;
+  added_by: string;
+}
+
 export interface Project {
   id: string;
   code: string;
@@ -147,6 +159,58 @@ export interface Project {
   baseline_committed: boolean;
   baseline_committed_at: string | null;
   share_token: string;
+  members?: ProjectMember[];
+  invite_default_role?: 'viewer' | 'writer';
+}
+
+export function getApiBaseUrl(): string {
+  const metaEnv = (import.meta as unknown as { env?: Record<string, string> }).env;
+  if (metaEnv?.VITE_API_URL) {
+    return String(metaEnv.VITE_API_URL).replace(/\/$/, '');
+  }
+  if (
+    typeof window !== 'undefined' &&
+    (window.location.hostname.includes('workers.dev') ||
+      window.location.hostname.includes('pages.dev'))
+  ) {
+    return 'https://tianlane.onrender.com';
+  }
+  return '';
+}
+
+export function isProjectCreator(project: Project, user: UserProfile): boolean {
+  return (
+    project.owner_id === user.id ||
+    (project.owner_id === 'usr-po-01' &&
+      user.email.toLowerCase() === 'james.nhan@logtechub.com')
+  );
+}
+
+export function getUserProjectRole(
+  project: Project,
+  user: UserProfile
+): ProjectMemberRole {
+  if (isProjectCreator(project, user)) return 'owner';
+  const list = project.members || [];
+  const hit = list.find(
+    (m) =>
+      m.user_id === user.id ||
+      m.email.toLowerCase() === user.email.toLowerCase()
+  );
+  if (hit) return hit.role;
+  return 'viewer';
+}
+
+export function canUserEditProject(project: Project, user: UserProfile): boolean {
+  const role = getUserProjectRole(project, user);
+  return role === 'owner' || role === 'writer';
+}
+
+export function canUserManageMembers(
+  project: Project,
+  user: UserProfile
+): boolean {
+  return getUserProjectRole(project, user) === 'owner';
 }
 
 export interface OdooConnectionConfig {
