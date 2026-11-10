@@ -480,7 +480,7 @@ export const ProjectEditModal: React.FC<ProjectEditModalProps> = ({
               </div>
               <p className="text-[12px] text-rose-600/90">
                 {!canDeleteProject
-                  ? 'Chỉ người tạo Project (Creator Owner) mới có quyền xóa dự án này.'
+                  ? 'Only the project creator (Creator Owner) has permission to delete this project.'
                   : totalProjectsCount <= 1
                   ? 'At least one project must remain in the workspace.'
                   : 'Remove this project along with its milestones, tasks, and attached deliverables.'}

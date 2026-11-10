@@ -70,17 +70,17 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
     const cleanName = fullName.trim();
     if (!cleanName) {
-      setErrorMsg('Vui lòng nhập họ và tên hiển thị.');
+      setErrorMsg('Please enter your full name.');
       return;
     }
 
     if (newPassword.trim()) {
       if (newPassword.trim().length < 6) {
-        setErrorMsg('Mật khẩu mới phải có ít nhất 6 ký tự.');
+        setErrorMsg('New password must be at least 6 characters.');
         return;
       }
       if (newPassword.trim() !== confirmPassword.trim()) {
-        setErrorMsg('Mật khẩu mới và xác nhận mật khẩu không khớp.');
+        setErrorMsg('New password and confirmation do not match.');
         return;
       }
     }
@@ -103,7 +103,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       onClose();
     } catch (err) {
       setErrorMsg(
-        err instanceof Error ? err.message : 'Lỗi khi cập nhật hồ sơ'
+        err instanceof Error ? err.message : 'Failed to update profile'
       );
     } finally {
       setIsSubmitting(false);
@@ -129,10 +129,10 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 id="profile-modal-title"
                 className="text-[15px] font-semibold text-[#121317]"
               >
-                Hồ sơ cá nhân &amp; Bảo mật
+                Profile &amp; Security
               </h2>
               <p className="text-[11.5px] text-[#6E717A]">
-                Cập nhật thông tin tài khoản và đổi mật khẩu
+                Update account details, role, and password
               </p>
             </div>
           </div>
@@ -176,7 +176,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 htmlFor="profile-avatar-url"
                 className="block text-[11.5px] font-medium text-[#45474D]"
               >
-                Avatar (Link hình ảnh hoặc Initials)
+                Avatar URL (or initials fallback)
               </label>
               <input
                 id="profile-avatar-url"
@@ -195,7 +195,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               htmlFor="profile-fullname"
               className="block text-[12px] font-medium text-[#45474D] mb-1"
             >
-              Họ và tên
+              Full Name
             </label>
             <input
               id="profile-fullname"
@@ -213,7 +213,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               htmlFor="profile-email"
               className="block text-[12px] font-medium text-[#45474D] mb-1"
             >
-              Email tài khoản
+              Corporate Email
             </label>
             <input
               id="profile-email"
@@ -230,7 +230,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               htmlFor="profile-role"
               className="block text-[12px] font-medium text-[#45474D] mb-1"
             >
-              Chức danh chuyên môn (Position)
+              Position / Role
             </label>
             <select
               id="profile-role"
@@ -251,7 +251,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             <div className="flex items-center justify-between">
               <span className="text-[12.5px] font-medium text-[#121317] flex items-center gap-1.5">
                 <Lock className="w-3.5 h-3.5 text-[#0A4595]" />
-                <span>Đổi mật khẩu tài khoản</span>
+                <span>Change Account Password</span>
               </span>
               <button
                 type="button"
@@ -259,7 +259,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 className="text-[11.5px] text-[#6E717A] hover:text-[#0A4595] flex items-center gap-1"
               >
                 {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                <span>{showPassword ? 'Ẩn' : 'Hiện'}</span>
+                <span>{showPassword ? 'Hide' : 'Show'}</span>
               </button>
             </div>
 
@@ -268,14 +268,14 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 htmlFor="profile-new-pass"
                 className="block text-[11.5px] text-[#6E717A] mb-1"
               >
-                Mật khẩu mới (để trống nếu không muốn đổi)
+                New password (leave blank to keep unchanged)
               </label>
               <input
                 id="profile-new-pass"
                 type={showPassword ? 'text' : 'password'}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Nhập mật khẩu mới..."
+                placeholder="Enter new password..."
                 className="w-full px-3.5 py-2 rounded-xl border border-[#E6E8EE] focus:border-[#0A4595] text-[13px] text-[#121317] outline-none"
               />
             </div>
@@ -286,14 +286,14 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   htmlFor="profile-confirm-pass"
                   className="block text-[11.5px] text-[#6E717A] mb-1"
                 >
-                  Xác nhận lại mật khẩu mới
+                  Confirm new password
                 </label>
                 <input
                   id="profile-confirm-pass"
                   type={showPassword ? 'text' : 'password'}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Nhập lại mật khẩu mới..."
+                  placeholder="Re-enter new password..."
                   className="w-full px-3.5 py-2 rounded-xl border border-[#E6E8EE] focus:border-[#0A4595] text-[13px] text-[#121317] outline-none"
                 />
               </div>
@@ -308,14 +308,14 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               disabled={isSubmitting}
               className="px-4 py-2 rounded-full border border-[#E6E8EE] hover:bg-[#F1F3F7] text-[13px] font-medium text-[#45474D] transition-colors"
             >
-              Hủy
+              Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
               className="px-5 py-2 rounded-full bg-[#0A4595] hover:bg-[#1264D4] disabled:opacity-60 text-white text-[13px] font-medium transition-colors"
             >
-              {isSubmitting ? 'Đang lưu...' : 'Lưu thay đổi'}
+              {isSubmitting ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
         </form>

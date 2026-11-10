@@ -127,8 +127,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   }, []);
 
   return (
-    <aside className="w-full lg:w-64 shrink-0 bg-[#F7F8FA] border-b lg:border-b-0 lg:border-r border-[#E6E8EE] flex flex-col justify-between select-none">
-      <div className="p-3.5 space-y-4">
+    <aside className="w-full lg:w-64 shrink-0 bg-[#F7F8FA] border-b lg:border-b-0 lg:border-r border-[#E6E8EE] flex flex-col justify-between select-none lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto">
+      <div className="p-3.5 space-y-4 flex-1">
         {/* Top Workspace Header Row: Brand Button with Profile / Options Menu */}
         <div className="relative" ref={brandMenuRef}>
           <div className="flex items-center justify-between px-1">
@@ -136,7 +136,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               type="button"
               onClick={() => setShowBrandMenu((v) => !v)}
               className="flex items-center gap-2 text-[#121317] font-semibold text-[14px] hover:bg-[#ECEEF3] px-2 py-1.5 rounded-xl transition-colors"
-              title="Tùy chọn tài khoản & không gian làm việc"
+              title="Workspace & account options"
             >
               <img
                 src="/favicon.png"
@@ -223,36 +223,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   className="w-full px-2.5 py-1.5 rounded-lg text-left text-[12.5px] font-medium text-[#121317] hover:bg-[#F1F3F7] flex items-center gap-2 transition-colors"
                 >
                   <User className="w-3.5 h-3.5 text-[#0A4595]" />
-                  <span>Chỉnh sửa hồ sơ &amp; Đổi mật khẩu</span>
+                  <span>Profile &amp; Password</span>
                 </button>
-
-                {isAdmin && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowBrandMenu(false);
-                      onSelectSection('accounts');
-                    }}
-                    className="w-full px-2.5 py-1.5 rounded-lg text-left text-[12.5px] font-medium text-[#121317] hover:bg-[#F1F3F7] flex items-center gap-2 transition-colors"
-                  >
-                    <ShieldCheck className="w-3.5 h-3.5 text-[#0A4595]" />
-                    <span>Quản lý 10 Account &amp; Reset Pass</span>
-                  </button>
-                )}
-
-                {onOpenAuthModal && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowBrandMenu(false);
-                      onOpenAuthModal();
-                    }}
-                    className="w-full px-2.5 py-1.5 rounded-lg text-left text-[12.5px] text-[#45474D] hover:bg-[#F1F3F7] hover:text-[#121317] flex items-center gap-2 transition-colors"
-                  >
-                    <Users className="w-3.5 h-3.5" />
-                    <span>Đổi tài khoản đăng nhập</span>
-                  </button>
-                )}
 
                 <div className="border-t border-[#E6E8EE] my-1" />
 
@@ -266,7 +238,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     className="w-full px-2.5 py-1.5 rounded-lg text-left text-[12.5px] font-medium text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition-colors"
                   >
                     <LogOut className="w-3.5 h-3.5" />
-                    <span>Đăng xuất</span>
+                    <span>Sign out</span>
                   </button>
                 )}
               </div>
@@ -282,7 +254,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             type="button"
             onClick={() => setShowTeamMenu((v) => !v)}
             className="w-full px-2.5 py-2 rounded-xl bg-white border border-[#E6E8EE] hover:border-[#0A4595] shadow-clean-xs flex items-center justify-between transition-all group cursor-pointer"
-            title="Nhấn để chọn và chuyển Team"
+            title="Switch active team"
           >
             <div className="flex items-center gap-2 min-w-0">
               <span className="w-6 h-6 rounded-lg bg-[#EEF3FB] text-[#0A4595] flex items-center justify-center text-[13px] shrink-0">
@@ -290,14 +262,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </span>
               <div className="text-left truncate">
                 <div className="text-[12.5px] font-semibold text-[#121317] truncate leading-tight">
-                  {activeTeam?.name || 'Chọn Team'}
+                  {activeTeam?.name || 'Select Team'}
                 </div>
                 <div className="text-[10.5px] text-[#6E717A] truncate">
                   {isAdmin
-                    ? 'Admin · Toàn quyền'
+                    ? 'Admin · Full access'
                     : isPmOfActiveTeam
-                    ? 'PM Team'
-                    : 'Thành viên'}
+                    ? 'Team PM'
+                    : 'Member'}
                 </div>
               </div>
             </div>
@@ -311,7 +283,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {showTeamMenu && (
             <div className="absolute top-full left-0 right-0 mt-1.5 z-40 bg-white border border-[#E6E8EE] rounded-2xl shadow-clean-lg p-1.5 overflow-hidden animate-in fade-in">
               <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#6E717A] border-b border-[#E6E8EE] flex items-center justify-between">
-                <span>{isAdmin ? 'Tất cả Team (Quyền Admin)' : 'Team của bạn'}</span>
+                <span>{isAdmin ? 'All Teams (Admin)' : 'Your Teams'}</span>
                 <span className="text-[10px] text-[#0A4595] font-mono">
                   {accessibleTeams.length}
                 </span>
@@ -368,7 +340,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     className="w-full px-2.5 py-1.5 text-left text-[12px] font-semibold text-[#0A4595] hover:bg-[#EEF3FB] rounded-xl flex items-center gap-1.5 transition-colors"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>Tạo Team mới...</span>
+                    <span>Create new team...</span>
                   </button>
                 </div>
               )}
@@ -596,14 +568,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   className="w-full text-left px-2.5 py-1 rounded-lg text-[12.5px] text-[#45474D] hover:bg-[#ECEEF3]/60 hover:text-[#121317] flex items-center gap-2"
                 >
                   <Users className="w-3.5 h-3.5" aria-hidden="true" />
-                  <span>Thành viên &amp; Position</span>
+                  <span>Members &amp; Roles</span>
                 </button>
               </div>
             </div>
           )}
         </div>
 
-        {/* Account Directory & Password Management (Admin) */}
+        {/* Account Directory (Admin) */}
         {isAdmin && (
           <div className="pt-2 border-t border-[#E6E8EE]">
             <button
@@ -617,7 +589,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <span className="flex items-center gap-2.5">
                 <ShieldCheck className="w-4 h-4 text-[#0A4595]" aria-hidden="true" />
-                <span>Quản lý Account</span>
+                <span>Accounts</span>
               </span>
               <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 uppercase">
                 Admin
@@ -648,8 +620,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
 
-      {/* Sidebar Footer: Profile Trigger & Reset */}
-      <div className="p-3.5 border-t border-[#E6E8EE] space-y-2.5 bg-white/50">
+      {/* Sidebar Footer: Profile Trigger & Reset (Sticky at bottom of sidebar) */}
+      <div className="p-3.5 border-t border-[#E6E8EE] space-y-2.5 bg-[#F7F8FA] sticky bottom-0 z-10">
         <div
           onClick={onOpenUserProfile}
           role="button"
@@ -658,7 +630,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             if (e.key === 'Enter') onOpenUserProfile();
           }}
           className="flex items-center justify-between gap-2 p-1.5 rounded-xl hover:bg-[#ECEEF3] cursor-pointer transition-colors"
-          title="Nhấn để mở Hồ sơ & Đổi mật khẩu"
+          title="Account Profile &amp; Settings"
         >
           <div className="flex items-center gap-2 min-w-0">
             <div className="w-8 h-8 rounded-full bg-[#0A4595] text-white flex items-center justify-center font-semibold text-[12px] shrink-0 overflow-hidden">
@@ -687,7 +659,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           </div>
           <span className="text-[11px] font-medium text-[#0A4595] px-2 py-0.5 rounded-full border border-[#B7CDF5] bg-[#EEF3FB] shrink-0">
-            Hồ sơ
+            Profile
           </span>
         </div>
 
@@ -699,7 +671,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               className="py-1.5 px-2.5 rounded-full border border-[#E6E8EE] bg-white hover:border-rose-300 text-[11.5px] text-[#45474D] hover:text-rose-700 flex items-center justify-center gap-1 transition-colors"
             >
               <LogOut className="w-3 h-3" aria-hidden="true" />
-              <span>Đăng xuất</span>
+              <span>Sign out</span>
             </button>
           )}
 

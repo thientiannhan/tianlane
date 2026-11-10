@@ -375,10 +375,10 @@ export const DetailDrawer: React.FC<DetailDrawerProps> = ({
               <div className="flex items-center justify-between">
                 <div>
                   <span className="text-[13px] font-semibold text-[#121317]">
-                    Danh sách Tasks ({milestoneTasks.length})
+                    Milestone Tasks ({milestoneTasks.length})
                   </span>
                   <div className="text-[11.5px] text-[#6E717A]">
-                    Công việc trực thuộc Milestone {activeMilestone.code}
+                    Tasks governed under {activeMilestone.code}
                   </div>
                 </div>
 
@@ -389,7 +389,7 @@ export const DetailDrawer: React.FC<DetailDrawerProps> = ({
                     className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#0A4595] hover:bg-[#083778] text-white text-[12px] font-medium transition-colors shadow-clean-xs"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>+ Thêm Task</span>
+                    <span>+ Add Task</span>
                   </button>
                 )}
               </div>
@@ -398,7 +398,7 @@ export const DetailDrawer: React.FC<DetailDrawerProps> = ({
                 {milestoneTasks.length === 0 ? (
                   <div className="p-4 text-center">
                     <p className="text-[12.5px] text-[#6E717A]">
-                      Chưa có công việc nào trong Milestone này.
+                      No tasks in this milestone yet.
                     </p>
                     {onOpenTaskModal && (
                       <button
@@ -407,7 +407,7 @@ export const DetailDrawer: React.FC<DetailDrawerProps> = ({
                         className="mt-2 inline-flex items-center gap-1 text-[12px] font-medium text-[#0A4595] hover:underline"
                       >
                         <Plus className="w-3.5 h-3.5" />
-                        <span>Thêm Task đầu tiên</span>
+                        <span>Add first task</span>
                       </button>
                     )}
                   </div>
@@ -474,7 +474,7 @@ export const DetailDrawer: React.FC<DetailDrawerProps> = ({
                           }}
                           className="px-2.5 py-1 rounded-full text-[11.5px] font-medium border border-[#E6E8EE] hover:border-[#0A4595] hover:text-[#0A4595] bg-white transition-colors shrink-0"
                         >
-                          Sửa
+                          Edit
                         </button>
                       </div>
                     );

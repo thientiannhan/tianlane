@@ -721,8 +721,8 @@ export const TeamView: React.FC<TeamViewProps> = ({
           <div className="flex items-center gap-2">
             <h1 className="text-[20px] font-semibold text-[#121317]">
               {activeTeam
-                ? `${activeTeam.icon || '🏢'} ${activeTeam.name} · Phân quyền & Vị trí`
-                : 'Logtechub Directory & Project Access'}
+                ? `${activeTeam.icon || '🏢'} ${activeTeam.name} · Roles & Access`
+                : 'Team Directory & Project Access'}
             </h1>
             {isPm && (
               <span className="px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-[#EEF3FB] text-[#0A4595] border border-[#B7CDF5]">
@@ -732,8 +732,8 @@ export const TeamView: React.FC<TeamViewProps> = ({
           </div>
           <p className="text-[13px] text-[#45474D] mt-0.5">
             {isPm
-              ? 'PM có quyền phân bổ Position (chức danh) cho từng thành viên trong team của mình.'
-              : 'Danh sách thành viên và phân quyền trong team.'}
+              ? 'PMs can assign and calibrate positions for members in this team.'
+              : 'Team member directory and project permissions.'}
           </p>
         </div>
 
@@ -745,8 +745,8 @@ export const TeamView: React.FC<TeamViewProps> = ({
               className="px-3.5 py-1.5 rounded-full border border-[#E6E8EE] hover:border-[#B7BFD9] bg-white text-[12px] font-medium text-[#45474D] transition-colors"
             >
               {showAllCompanyUsers
-                ? 'Chỉ hiện Team này'
-                : 'Hiện tất cả User (Admin)'}
+                ? 'Show this team only'
+                : 'Show all users (Admin)'}
             </button>
           )}
 
@@ -756,7 +756,7 @@ export const TeamView: React.FC<TeamViewProps> = ({
               onClick={onOpenUserProfile}
               className="px-3.5 py-1.5 rounded-full border border-[#E6E8EE] hover:border-[#0A4595] bg-white text-[12.5px] font-medium text-[#121317] transition-colors"
             >
-              Hồ sơ cá nhân
+              My Profile
             </button>
           )}
 
@@ -766,7 +766,7 @@ export const TeamView: React.FC<TeamViewProps> = ({
               onClick={onOpenMembersModal}
               className="px-4 py-1.5 rounded-full bg-[#0A4595] hover:bg-[#1264D4] text-white text-[12.5px] font-medium transition-colors"
             >
-              Phân quyền Project ({activeProject.code})
+              Project Access ({activeProject.code})
             </button>
           )}
         </div>
@@ -853,7 +853,7 @@ export const TeamView: React.FC<TeamViewProps> = ({
                         )
                       }
                       className="px-2.5 py-1 text-[12px] font-medium rounded-xl border border-[#E6E8EE] bg-white text-[#121317] hover:border-[#0A4595] focus:outline-none transition-colors"
-                      title="Chọn lại Position cho thành viên này"
+                      title="Update position for this member"
                     >
                       {POSITION_CHOICES.map((pos) => (
                         <option key={pos} value={pos}>
@@ -882,7 +882,7 @@ export const TeamView: React.FC<TeamViewProps> = ({
 
                 {isCurrent && (
                   <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#EEF3FB] text-[#0A4595]">
-                    Đang đăng nhập
+                    Active session
                   </span>
                 )}
               </div>
@@ -1333,7 +1333,7 @@ export const AccountManagementView: React.FC<AccountManagementViewProps> = ({
     const username = u.email.split('@')[0];
     const defaultPassword = `${username}${currentYear}`;
     const confirmed = confirm(
-      `Khôi phục mật khẩu tài khoản ${u.full_name} (${u.email})?\n\nMật khẩu sẽ được đưa về dạng mặc định: ${defaultPassword}`
+      `Reset password for ${u.full_name} (${u.email})?\n\nPassword will revert to default format: ${defaultPassword}`
     );
     if (!confirmed) return;
 
@@ -1341,7 +1341,7 @@ export const AccountManagementView: React.FC<AccountManagementViewProps> = ({
     try {
       await onResetPassword(u);
       setResetSuccessNotice(
-        `Đã reset mật khẩu của ${u.full_name} về mặc định: ${defaultPassword}`
+        `Password for ${u.full_name} has been reset to default: ${defaultPassword}`
       );
       setTimeout(() => {
         setResetSuccessNotice(null);
@@ -1361,14 +1361,14 @@ export const AccountManagementView: React.FC<AccountManagementViewProps> = ({
               <ShieldCheck className="w-5 h-5" />
             </div>
             <h1 className="text-[20px] font-semibold text-[#121317]">
-              Quản lý Tài khoản &amp; Khôi phục Mật khẩu
+              Account Directory &amp; Access
             </h1>
             <span className="px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-amber-100 text-amber-800 uppercase">
               Admin Control
             </span>
           </div>
           <p className="text-[13px] text-[#45474D] mt-1">
-            Danh sách 10 tài khoản chính thức (@logtechub.com), phân bổ Position và khôi phục mật khẩu về định dạng chuẩn (<span className="font-mono text-[#0A4595]">&lt;username&gt;{currentYear}</span>).
+            Corporate directory (@logtechub.com), role assignments, and password reset to default format (<span className="font-mono text-[#0A4595]">&lt;username&gt;{currentYear}</span>).
           </p>
         </div>
 
@@ -1378,7 +1378,7 @@ export const AccountManagementView: React.FC<AccountManagementViewProps> = ({
             onClick={onOpenUserProfile}
             className="px-4 py-2 rounded-full border border-[#0A4595] text-[#0A4595] hover:bg-[#EEF3FB] text-[12.5px] font-medium transition-colors"
           >
-            Hồ sơ của tôi
+            My Profile
           </button>
         )}
       </div>
@@ -1395,7 +1395,7 @@ export const AccountManagementView: React.FC<AccountManagementViewProps> = ({
             onClick={() => setResetSuccessNotice(null)}
             className="text-emerald-700 hover:text-emerald-900 text-[12px] underline ml-4"
           >
-            Đóng
+            Dismiss
           </button>
         </div>
       )}
@@ -1408,13 +1408,13 @@ export const AccountManagementView: React.FC<AccountManagementViewProps> = ({
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Tìm theo tên hoặc email @logtechub.com..."
+            placeholder="Search by name or @logtechub.com email..."
             className="w-full pl-9 pr-3.5 py-1.5 rounded-xl border border-[#E6E8EE] bg-white text-[13px] text-[#121317] placeholder:text-[#6E717A] focus:outline-none focus:border-[#0A4595]"
           />
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-[12px] text-[#6E717A]">Lọc chức danh:</span>
+          <span className="text-[12px] text-[#6E717A]">Filter role:</span>
           <select
             value={roleFilter}
             onChange={(e) =>
@@ -1422,7 +1422,7 @@ export const AccountManagementView: React.FC<AccountManagementViewProps> = ({
             }
             className="px-3 py-1.5 rounded-xl border border-[#E6E8EE] bg-white text-[12.5px] text-[#121317] focus:outline-none focus:border-[#0A4595]"
           >
-            <option value="all">Tất cả chức danh (10)</option>
+            <option value="all">All roles ({users.length})</option>
             {POSITION_CHOICES.map((p) => (
               <option key={p} value={p}>
                 {p}
@@ -1482,7 +1482,7 @@ export const AccountManagementView: React.FC<AccountManagementViewProps> = ({
                     )}
                     {isCurrent && (
                       <span className="px-2 py-0.2 rounded-full text-[10px] font-semibold bg-[#EEF3FB] text-[#0A4595]">
-                        Đang đăng nhập
+                        Active session
                       </span>
                     )}
                   </div>
@@ -1503,7 +1503,7 @@ export const AccountManagementView: React.FC<AccountManagementViewProps> = ({
                       ))
                     ) : (
                       <span className="text-[11px] text-[#6E717A] italic">
-                        Chưa gán team
+                        No team assigned
                       </span>
                     )}
                   </div>
@@ -1538,13 +1538,13 @@ export const AccountManagementView: React.FC<AccountManagementViewProps> = ({
                   type="button"
                   disabled={resettingEmail === u.email}
                   onClick={() => handleTriggerReset(u)}
-                  title={`Khôi phục mật khẩu tài khoản về mặc định (${username}${currentYear})`}
+                  title={`Reset password to default (${username}${currentYear})`}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-amber-300 bg-amber-50/80 hover:bg-amber-100 text-amber-900 text-[12px] font-medium transition-colors shadow-clean-xs"
                 >
                   <KeyRound className="w-3.5 h-3.5 text-amber-700" />
                   <span>
                     {resettingEmail === u.email
-                      ? 'Đang reset...'
+                      ? 'Resetting...'
                       : 'Reset Password'}
                   </span>
                 </button>
@@ -1554,9 +1554,11 @@ export const AccountManagementView: React.FC<AccountManagementViewProps> = ({
                   <button
                     type="button"
                     onClick={() => onSelectUserLogin(u)}
-                    className="px-3 py-1.5 rounded-full border border-[#E6E8EE] hover:border-[#0A4595] bg-white text-[#45474D] hover:text-[#0A4595] text-[12px] font-medium transition-colors"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#E6E8EE] hover:border-[#0A4595] bg-white text-[#45474D] hover:text-[#0A4595] text-[12px] font-medium transition-colors shadow-clean-xs"
+                    title={`Switch active session to ${u.full_name}`}
                   >
-                    Đăng nhập
+                    <UserCheck className="w-3.5 h-3.5" />
+                    <span>Switch Account</span>
                   </button>
                 )}
               </div>

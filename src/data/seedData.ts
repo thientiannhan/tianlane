@@ -166,7 +166,7 @@ export function authenticateLogtechubUser(
   if (!isMatch) {
     return {
       ok: false,
-      error: 'Mật khẩu không chính xác. Vui lòng thử lại.',
+      error: 'Invalid password. Please try again.',
     };
   }
 

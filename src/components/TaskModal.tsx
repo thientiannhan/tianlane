@@ -35,17 +35,17 @@ interface TaskModalProps {
 }
 
 const KANBAN_STATUS_OPTIONS: { id: KanbanStatus; label: string }[] = [
-  { id: 'todo', label: 'To Do (Cần làm)' },
-  { id: 'in_progress', label: 'In Progress (Đang làm)' },
-  { id: 'review', label: 'In Review (Chờ duyệt)' },
-  { id: 'done', label: 'Done (Hoàn thành)' },
-  { id: 'backlog', label: 'Backlog (Tồn đọng)' },
+  { id: 'todo', label: 'To Do' },
+  { id: 'in_progress', label: 'In Progress' },
+  { id: 'review', label: 'In Review' },
+  { id: 'done', label: 'Done' },
+  { id: 'backlog', label: 'Backlog' },
 ];
 
 const PRIORITY_OPTIONS: { id: TaskPriority; label: string; color: string }[] = [
-  { id: 'low', label: 'Thấp (Low)', color: 'text-slate-600 bg-slate-100' },
-  { id: 'medium', label: 'Trung bình (Medium)', color: 'text-amber-700 bg-amber-50' },
-  { id: 'high', label: 'Cao (High / Blocker)', color: 'text-rose-700 bg-rose-50' },
+  { id: 'low', label: 'Low', color: 'text-slate-600 bg-slate-100' },
+  { id: 'medium', label: 'Medium', color: 'text-amber-700 bg-amber-50' },
+  { id: 'high', label: 'High (Blocker)', color: 'text-rose-700 bg-rose-50' },
 ];
 
 export const TaskModal: React.FC<TaskModalProps> = ({
@@ -98,7 +98,6 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       setOdooTaskUrl(task.odoo_task_url || '');
       setChecklist(task.checklist || []);
     } else {
-      // New Task: compute default milestone & next task code
       const targetMs =
         milestones.find((m) => m.id === defaultMilestoneId) ??
         milestones[0];
@@ -121,14 +120,13 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       setOdooTaskId('');
       setOdooTaskUrl('');
       setChecklist([
-        { id: `chk-${Date.now()}-1`, label: 'Xác nhận yêu cầu bàn giao', done: false },
+        { id: `chk-${Date.now()}-1`, label: 'Verify deliverable completion', done: false },
       ]);
     }
     setErrorMsg(null);
     setNewChecklistText('');
   }, [isOpen, task, defaultMilestoneId, project, milestones, users, existingTasks]);
 
-  // Auto-generate Odoo URL when odooTaskId changes if url is empty
   const handleOdooIdChange = (idVal: string) => {
     setOdooTaskId(idVal);
     const cleanId = idVal.trim();
@@ -165,11 +163,11 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
-      setErrorMsg('Vui lòng nhập tên công việc (Task title).');
+      setErrorMsg('Please enter a task title.');
       return;
     }
     if (!milestoneId) {
-      setErrorMsg('Vui lòng chọn Milestone trực thuộc cho Task.');
+      setErrorMsg('Please select a parent milestone for this task.');
       return;
     }
 
@@ -222,11 +220,11 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                 {project.code}
               </span>
               <h2 className="text-[17px] font-semibold text-[#121317]">
-                {isEditing ? `Chỉnh sửa Task · ${task?.code}` : 'Tạo Task mới trong Project'}
+                {isEditing ? `Edit Task · ${task?.code}` : 'New Task'}
               </h2>
             </div>
             <p className="text-[12.5px] text-[#6E717A] mt-0.5">
-              Phân cấp: {project.name} &gt; Milestone &gt; Task (Đồng bộ Odoo)
+              Hierarchy: {project.name} &gt; Milestone &gt; Task (Odoo Sync)
             </p>
           </div>
 
@@ -234,7 +232,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             type="button"
             onClick={onClose}
             className="w-8 h-8 rounded-full flex items-center justify-center text-[#6E717A] hover:text-[#121317] hover:bg-[#F1F3F7] transition-colors"
-            aria-label="Đóng"
+            aria-label="Close"
           >
             <X className="w-4 h-4" />
           </button>
@@ -253,7 +251,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="sm:col-span-2 space-y-1">
               <label className="text-[12.5px] font-medium text-[#121317] flex items-center justify-between">
-                <span>Milestone trực thuộc <span className="text-rose-500">*</span></span>
+                <span>Parent Milestone <span className="text-rose-500">*</span></span>
               </label>
               <select
                 value={milestoneId}
@@ -261,7 +259,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                 className="w-full px-3.5 py-2 rounded-xl border border-[#E6E8EE] bg-white text-[13px] text-[#121317] hover:border-[#B7BFD9] focus:outline-none focus:border-[#0A4595] transition-colors"
                 required
               >
-                <option value="" disabled>-- Chọn Milestone --</option>
+                <option value="" disabled>-- Select Milestone --</option>
                 {milestones.map((ms) => (
                   <option key={ms.id} value={ms.id}>
                     {ms.code} · {ms.title} ({ms.progress_pct}%)
@@ -272,7 +270,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
 
             <div className="space-y-1">
               <label className="text-[12.5px] font-medium text-[#121317]">
-                Mã Task (Code)
+                Task Code
               </label>
               <input
                 type="text"
@@ -287,13 +285,13 @@ export const TaskModal: React.FC<TaskModalProps> = ({
           {/* Row 2: Title */}
           <div className="space-y-1">
             <label className="text-[12.5px] font-medium text-[#121317]">
-              Tên công việc / Task Title <span className="text-rose-500">*</span>
+              Task Title <span className="text-rose-500">*</span>
             </label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Ví dụ: Thiết kế Data Flow Diagram và API Spec Odoo"
+              placeholder="e.g. Design Data Flow Diagram and Odoo API Spec"
               className="w-full px-3.5 py-2 rounded-xl border border-[#E6E8EE] text-[13.5px] text-[#121317] placeholder:text-[#6E717A] hover:border-[#B7BFD9] focus:outline-none focus:border-[#0A4595] transition-colors"
               required
             />
@@ -302,13 +300,13 @@ export const TaskModal: React.FC<TaskModalProps> = ({
           {/* Row 3: Description */}
           <div className="space-y-1">
             <label className="text-[12.5px] font-medium text-[#121317]">
-              Mô tả chi tiết &amp; Yêu cầu bàn giao
+              Description &amp; Acceptance Criteria
             </label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={2}
-              placeholder="Chi tiết yêu cầu, tiêu chuẩn kỹ thuật hoặc link tài liệu liên quan..."
+              placeholder="Technical specifications, deliverable requirements, or reference links..."
               className="w-full px-3.5 py-2 rounded-xl border border-[#E6E8EE] text-[13px] text-[#121317] placeholder:text-[#6E717A] hover:border-[#B7BFD9] focus:outline-none focus:border-[#0A4595] transition-colors resize-none"
             />
           </div>
@@ -317,7 +315,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="space-y-1">
               <label className="text-[12.5px] font-medium text-[#121317]">
-                Người thực hiện (Assignee)
+                Assignee
               </label>
               <select
                 value={assigneeId}
@@ -334,7 +332,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
 
             <div className="space-y-1">
               <label className="text-[12.5px] font-medium text-[#121317]">
-                Trạng thái Kanban
+                Kanban Status
               </label>
               <select
                 value={kanbanStatus}
@@ -351,7 +349,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
 
             <div className="space-y-1">
               <label className="text-[12.5px] font-medium text-[#121317]">
-                Độ ưu tiên (Priority)
+                Priority
               </label>
               <select
                 value={priority}
@@ -372,7 +370,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
                 <label className="text-[12px] font-medium text-[#45474D]">
-                  Ngày bắt đầu (Planned Start)
+                  Planned Start Date
                 </label>
                 <input
                   type="date"
@@ -384,7 +382,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
 
               <div className="space-y-1">
                 <label className="text-[12px] font-medium text-[#45474D]">
-                  Hạn hoàn thành (Due Date)
+                  Due Date
                 </label>
                 <input
                   type="date"
@@ -403,7 +401,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                 className="w-4 h-4 rounded text-[#0A4595] border-[#E6E8EE] focus:ring-0"
               />
               <span className="text-[12.5px] font-medium text-[#121317]">
-                Phase Gate Blocker (Bắt buộc hoàn thành để đóng Milestone Gate)
+                Phase Gate Blocker (Must be completed to close parent milestone gate)
               </span>
             </label>
           </div>
@@ -414,7 +412,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
               <div className="flex items-center gap-2">
                 <Link2 className="w-4 h-4 text-[#0A4595]" />
                 <span className="text-[13px] font-semibold text-[#0A4595]">
-                  Liên kết Execution Tracker (Odoo Task)
+                  Execution Tracker Integration (Odoo Task)
                 </span>
               </div>
               {odooTaskUrl && (
@@ -424,7 +422,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                   rel="noreferrer"
                   className="inline-flex items-center gap-1 text-[11.5px] font-medium text-[#0A4595] hover:underline"
                 >
-                  <span>Mở trên Odoo</span>
+                  <span>Open in Odoo</span>
                   <ExternalLink className="w-3 h-3" />
                 </a>
               )}
@@ -458,7 +456,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
               </div>
             </div>
             <p className="text-[11.5px] text-[#45474D]">
-              Khi điền Odoo Task ID, Tianlane sẽ tự động liên kết và đồng bộ trạng thái thực thi hai chiều.
+              Directly links to Odoo project.task for bidirectional progress synchronization.
             </p>
           </div>
 
@@ -467,14 +465,14 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             <label className="text-[12.5px] font-medium text-[#121317] flex items-center justify-between">
               <span className="flex items-center gap-1.5">
                 <CheckSquare className="w-3.5 h-3.5 text-[#0A4595]" />
-                <span>Checklist công việc ({checklist.filter((c) => c.done).length}/{checklist.length})</span>
+                <span>Deliverable Checklist ({checklist.filter((c) => c.done).length}/{checklist.length})</span>
               </span>
             </label>
 
             <div className="divide-y divide-[#E6E8EE] rounded-2xl border border-[#E6E8EE] overflow-hidden bg-white">
               {checklist.length === 0 ? (
                 <div className="p-3 text-[12px] text-[#6E717A] text-center">
-                  Chưa có tiêu chí nào. Thêm bên dưới.
+                  No checklist items yet. Add one below.
                 </div>
               ) : (
                 checklist.map((item) => (
@@ -501,7 +499,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                       type="button"
                       onClick={() => handleRemoveChecklist(item.id)}
                       className="p-1 rounded text-[#6E717A] hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                      title="Xóa tiêu chí này"
+                      title="Remove checklist item"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -515,7 +513,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                 type="text"
                 value={newChecklistText}
                 onChange={(e) => setNewChecklistText(e.target.value)}
-                placeholder="Thêm tiêu chí bàn giao..."
+                placeholder="Add deliverable checklist item..."
                 className="flex-1 px-3 py-1.5 rounded-xl border border-[#E6E8EE] text-[12.5px] text-[#121317] placeholder:text-[#6E717A] focus:outline-none focus:border-[#0A4595]"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
@@ -530,7 +528,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                 className="px-3.5 py-1.5 rounded-xl border border-[#E6E8EE] hover:border-[#0A4595] bg-[#F7F8FA] hover:bg-[#EEF3FB] text-[12px] font-medium text-[#0A4595] flex items-center gap-1 transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>Thêm</span>
+                <span>Add</span>
               </button>
             </div>
           </div>
@@ -543,7 +541,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  if (confirm(`Bạn có chắc chắn muốn xóa task "${task.code}: ${task.title}"?`)) {
+                  if (confirm(`Are you sure you want to delete task "${task.code}: ${task.title}"?`)) {
                     onDelete(task.id);
                     onClose();
                   }
@@ -551,7 +549,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                 className="px-3 py-1.5 rounded-full border border-rose-200 text-rose-600 hover:bg-rose-50 text-[12px] font-medium flex items-center gap-1 transition-colors"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                <span>Xóa Task</span>
+                <span>Delete Task</span>
               </button>
             )}
           </div>
@@ -562,7 +560,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
               onClick={onClose}
               className="px-4 py-2 rounded-full border border-[#E6E8EE] hover:border-[#B7BFD9] bg-white text-[13px] font-medium text-[#45474D] hover:text-[#121317] transition-colors"
             >
-              Hủy
+              Cancel
             </button>
             <button
               type="button"
@@ -570,7 +568,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
               className="px-5 py-2 rounded-full bg-[#0A4595] hover:bg-[#083778] text-white text-[13px] font-medium shadow-clean-sm flex items-center gap-1.5 transition-colors"
             >
               <Check className="w-4 h-4" />
-              <span>{isEditing ? 'Lưu thay đổi' : 'Tạo Task mới'}</span>
+              <span>{isEditing ? 'Save Changes' : 'Create Task'}</span>
             </button>
           </div>
         </div>

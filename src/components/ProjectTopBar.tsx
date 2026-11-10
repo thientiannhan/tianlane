@@ -84,7 +84,7 @@ export const ProjectTopBar: React.FC<ProjectTopBarProps> = ({
               <button
                 type="button"
                 onClick={onOpenMembersModal}
-                title="Xem quyền hạn & danh sách thành viên trong Project"
+                title="View members and project permissions"
                 className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium border transition-colors ${
                   userRole === 'owner'
                     ? 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
@@ -102,12 +102,12 @@ export const ProjectTopBar: React.FC<ProjectTopBarProps> = ({
                 )}
                 <span>
                   {userIsCreator
-                    ? 'Owner (Người tạo)'
+                    ? 'Owner (Creator)'
                     : userRole === 'owner'
                     ? 'Owner'
                     : userRole === 'writer'
-                    ? 'Writer (Sửa)'
-                    : 'Viewer (Chỉ xem)'}
+                    ? 'Writer'
+                    : 'Viewer'}
                 </span>
               </button>
 
@@ -137,7 +137,9 @@ export const ProjectTopBar: React.FC<ProjectTopBarProps> = ({
           ) : (
             <h1 className="text-[16px] font-medium text-[#121317] capitalize">
               {activeSection === 'team'
-                ? 'Your team & Project Access'
+                ? 'Team Members & Roles'
+                : activeSection === 'accounts'
+                ? 'Account Directory & Access'
                 : activeSection === 'settings'
                 ? 'Project Standard Settings'
                 : activeSection === 'files'
@@ -153,18 +155,18 @@ export const ProjectTopBar: React.FC<ProjectTopBarProps> = ({
             <button
               type="button"
               onClick={onOpenCreateTask}
-              title="Tạo Task mới trong Milestone của Project"
+              title="Create a new task in this project"
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#0A4595] hover:bg-[#083778] text-white text-[12.5px] font-medium transition-colors shadow-clean-xs"
             >
               <Plus className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>+ Thêm Task</span>
+              <span>+ Add Task</span>
             </button>
           )}
 
           <button
             type="button"
             onClick={onOpenMembersModal}
-            title="Quản lý thành viên, phân quyền (View / Writer / Owner) & Link Invite"
+            title="Manage project members, access roles (Viewer / Writer / Owner), and invite links"
             className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-[#B7CDF5] bg-[#EEF3FB] hover:bg-[#E0EAFA] text-[12.5px] font-medium text-[#0A4595] transition-colors"
           >
             <Share2 className="w-3.5 h-3.5" aria-hidden="true" />

@@ -142,7 +142,7 @@ assert.equal(authenticateLogtechubUser('alex.phuong@logtechub.com', 'alex.phuong
 const failCheck = authenticateLogtechubUser('james.nhan@logtechub.com', 'wrongpass');
 assert.equal(failCheck.ok, false);
 if (!failCheck.ok) {
-  assert.equal(failCheck.error, 'Mật khẩu không chính xác. Vui lòng thử lại.');
+  assert.equal(failCheck.error, 'Invalid password. Please try again.');
   assert.equal(failCheck.error.includes('james.nhan2026'), false, 'Never leak password hint to users');
 }
 

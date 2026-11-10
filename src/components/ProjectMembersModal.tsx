@@ -43,21 +43,21 @@ export const ROLE_BADGE_META: Record<
   { label: string; shortLabel: string; desc: string; badgeClass: string }
 > = {
   owner: {
-    label: 'Owner (Quản trị)',
+    label: 'Owner (Full Access)',
     shortLabel: 'Owner',
-    desc: 'Toàn quyền chỉnh sửa dự án, quản lý thành viên & link mời (Chỉ người tạo Project mới xóa được Owner / xóa Project)',
+    desc: 'Full project authority, member management & invite links (Only Project Creator can delete an Owner or delete project)',
     badgeClass: 'bg-amber-50 text-amber-800 border-amber-200',
   },
   writer: {
-    label: 'Writer (Sửa)',
+    label: 'Writer (Edit)',
     shortLabel: 'Writer',
-    desc: 'Được tạo & sửa Task, kéo thả Kanban, dịch ngày Timeline, chốt Baseline, upload tài liệu',
+    desc: 'Create & edit tasks, drag Kanban cards, adjust dates, commit baselines, and upload deliverables',
     badgeClass: 'bg-[#EEF3FB] text-[#0A4595] border-[#B7CDF5]',
   },
   viewer: {
-    label: 'Viewer (Chỉ xem)',
+    label: 'Viewer (Read-only)',
     shortLabel: 'Viewer',
-    desc: 'Chỉ xem tiến độ Timeline, Kanban, tài liệu nghiệm thu; không được phép chỉnh sửa',
+    desc: 'Inspect timeline, kanban, deliverables and progress. Editing disabled',
     badgeClass: 'bg-[#F1F3F7] text-[#45474D] border-[#E6E8EE]',
   },
 };
@@ -140,7 +140,7 @@ export const ProjectMembersModal: React.FC<ProjectMembersModalProps> = ({
     const cleanCode = project.code.toLowerCase().replace(/[^a-z0-9]/g, '');
     const nextToken = `tl-${cleanCode}-${Math.random().toString(36).slice(2, 8)}`;
     onUpdateProjectMembers(project.id, members, nextToken, inviteLinkRole === 'viewer' ? 'viewer' : 'writer');
-    setFeedbackMsg('Đã tạo mã Link Invite mới (các link cũ đã bị vô hiệu hóa).');
+    setFeedbackMsg('New invite link generated (previous link has been revoked).');
   };
 
   const handleEmailInputChange = (val: string) => {
@@ -168,18 +168,18 @@ export const ProjectMembersModal: React.FC<ProjectMembersModalProps> = ({
     setFeedbackMsg(null);
 
     if (!canManage) {
-      setErrorMsg('Chỉ Owner của dự án mới có quyền thêm thành viên.');
+      setErrorMsg('Only project Owners have permission to add members.');
       return;
     }
 
     const cleanEmail = newEmail.trim().toLowerCase();
     if (!cleanEmail || !cleanEmail.includes('@')) {
-      setErrorMsg('Vui lòng nhập email hợp lệ (ví dụ: ten@logtechub.com).');
+      setErrorMsg('Please enter a valid email address (e.g. member@logtechub.com).');
       return;
     }
 
     if (newRole === 'owner' && !currentIsCreator) {
-      setErrorMsg('Chỉ người tạo Project (Creator Owner) mới có quyền bổ nhiệm thêm Owner.');
+      setErrorMsg('Only the Project Creator (Creator Owner) can assign the Owner role.');
       return;
     }
 
@@ -187,7 +187,7 @@ export const ProjectMembersModal: React.FC<ProjectMembersModalProps> = ({
       (m) => m.email.toLowerCase() === cleanEmail
     );
     if (existingMember) {
-      setErrorMsg(`Thành viên ${cleanEmail} đã có trong dự án này.`);
+      setErrorMsg(`Member ${cleanEmail} is already a member of this project.`);
       return;
     }
 
@@ -239,7 +239,7 @@ export const ProjectMembersModal: React.FC<ProjectMembersModalProps> = ({
     setNewEmail('');
     setNewFullName('');
     setFeedbackMsg(
-      `Đã thêm ${cleanName} (${cleanEmail}) với quyền ${ROLE_BADGE_META[newRole].shortLabel}.`
+      `Added ${cleanName} (${cleanEmail}) as ${ROLE_BADGE_META[newRole].shortLabel}.`
     );
   };
 
@@ -251,7 +251,7 @@ export const ProjectMembersModal: React.FC<ProjectMembersModalProps> = ({
     setFeedbackMsg(null);
 
     if (!canManage) {
-      setErrorMsg('Chỉ Owner mới có quyền thay đổi vị trí thành viên.');
+      setErrorMsg('Only an Owner can update member roles.');
       return;
     }
 
@@ -261,7 +261,7 @@ export const ProjectMembersModal: React.FC<ProjectMembersModalProps> = ({
         targetMember.email.toLowerCase() === 'james.nhan@logtechub.com');
 
     if (targetIsCreator) {
-      setErrorMsg('Không thể thay đổi quyền của Người tạo Project (Creator Owner).');
+      setErrorMsg('Cannot modify permissions of the Project Creator.');
       return;
     }
 
@@ -271,7 +271,7 @@ export const ProjectMembersModal: React.FC<ProjectMembersModalProps> = ({
       !currentIsCreator
     ) {
       setErrorMsg(
-        'Chỉ người tạo Project (Creator Owner) mới có quyền thêm hoặc gỡ quyền Owner.'
+        'Only the Project Creator can grant or revoke Owner permissions.'
       );
       return;
     }
@@ -283,7 +283,7 @@ export const ProjectMembersModal: React.FC<ProjectMembersModalProps> = ({
     );
     onUpdateProjectMembers(project.id, nextMembers);
     setFeedbackMsg(
-      `Đã cập nhật quyền của ${targetMember.full_name} thành ${ROLE_BADGE_META[nextRole].label}.`
+      `Updated role for ${targetMember.full_name} to ${ROLE_BADGE_META[nextRole].label}.`
     );
   };
 
@@ -292,7 +292,7 @@ export const ProjectMembersModal: React.FC<ProjectMembersModalProps> = ({
     setFeedbackMsg(null);
 
     if (!canManage) {
-      setErrorMsg('Chỉ Owner mới có quyền xóa thành viên khỏi dự án.');
+      setErrorMsg('Only an Owner can remove members from this project.');
       return;
     }
 
@@ -302,14 +302,14 @@ export const ProjectMembersModal: React.FC<ProjectMembersModalProps> = ({
         targetMember.email.toLowerCase() === 'james.nhan@logtechub.com');
 
     if (targetIsCreator) {
-      setErrorMsg('Không thể xóa Người tạo Project (Creator Owner) khỏi dự án.');
+      setErrorMsg('Cannot remove the Project Creator from this project.');
       return;
     }
 
-    // Strict user requirement: "xóa owner là chỉ ng tạo project có"
+    // Strict requirement: Only the project creator can delete an owner
     if (targetMember.role === 'owner' && !currentIsCreator) {
       setErrorMsg(
-        'Chỉ người tạo Project (Creator Owner) mới có quyền xóa một Owner khỏi dự án.'
+        'Only the Project Creator can remove an Owner from this project.'
       );
       return;
     }
@@ -318,7 +318,7 @@ export const ProjectMembersModal: React.FC<ProjectMembersModalProps> = ({
       (m) => m.email.toLowerCase() !== targetMember.email.toLowerCase()
     );
     onUpdateProjectMembers(project.id, nextMembers);
-    setFeedbackMsg(`Đã xóa ${targetMember.full_name} khỏi dự án ${project.code}.`);
+    setFeedbackMsg(`Removed ${targetMember.full_name} from project ${project.code}.`);
   };
 
   // Directory suggestions not yet in project
@@ -345,15 +345,15 @@ export const ProjectMembersModal: React.FC<ProjectMembersModalProps> = ({
                 id="project-members-modal-title"
                 className="text-[16px] font-semibold text-[#121317] truncate"
               >
-                Thành viên &amp; Chia sẻ Project · {project.code} {project.name}
+                Members &amp; Project Access · {project.code} {project.name}
               </h2>
               <div className="flex flex-wrap items-center gap-2 text-[12px] text-[#45474D]">
-                <span>Quyền của bạn ({currentUser.full_name}):</span>
+                <span>Your role ({currentUser.full_name}):</span>
                 <span
                   className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border ${ROLE_BADGE_META[currentUserRole].badgeClass}`}
                 >
                   {currentIsCreator
-                    ? '👑 Creator Owner (Người tạo Project)'
+                    ? '👑 Project Creator (Owner)'
                     : ROLE_BADGE_META[currentUserRole].label}
                 </span>
               </div>
@@ -396,7 +396,7 @@ export const ProjectMembersModal: React.FC<ProjectMembersModalProps> = ({
               <div className="flex items-center gap-2">
                 <Link2 className="w-4 h-4 text-[#0A4595]" />
                 <span className="text-[13.5px] font-semibold text-[#121317]">
-                  Chia sẻ theo Link Invite
+                  Share via Invite Link
                 </span>
               </div>
 
@@ -405,7 +405,7 @@ export const ProjectMembersModal: React.FC<ProjectMembersModalProps> = ({
                   htmlFor="invite-role-select"
                   className="text-[12px] text-[#45474D]"
                 >
-                  Quyền khi vào bằng link:
+                  Default role via link:
                 </label>
                 <select
                   id="invite-role-select"
@@ -416,10 +416,10 @@ export const ProjectMembersModal: React.FC<ProjectMembersModalProps> = ({
                   }
                   className="px-2.5 py-1 rounded-lg border border-[#E6E8EE] bg-white text-[12px] font-medium text-[#121317] outline-none disabled:opacity-60"
                 >
-                  <option value="viewer">Viewer (Chỉ xem)</option>
-                  <option value="writer">Writer (Được sửa)</option>
+                  <option value="viewer">Viewer (Read-only)</option>
+                  <option value="writer">Writer (Edit)</option>
                   {currentIsCreator && (
-                    <option value="owner">Owner (Quản trị)</option>
+                    <option value="owner">Owner (Full Access)</option>
                   )}
                 </select>
               </div>
@@ -442,12 +442,12 @@ export const ProjectMembersModal: React.FC<ProjectMembersModalProps> = ({
                   {copiedLink ? (
                     <>
                       <Check className="w-3.5 h-3.5" />
-                      <span>Đã copy link</span>
+                      <span>Link copied</span>
                     </>
                   ) : (
                     <>
                       <Copy className="w-3.5 h-3.5" />
-                      <span>Copy Link Invite</span>
+                      <span>Copy Invite Link</span>
                     </>
                   )}
                 </button>
@@ -456,21 +456,20 @@ export const ProjectMembersModal: React.FC<ProjectMembersModalProps> = ({
                   <button
                     type="button"
                     onClick={handleRegenerateToken}
-                    title="Đổi mã token mới để vô hiệu hóa các link cũ"
+                    title="Generate a new token to invalidate existing links"
                     className="inline-flex items-center gap-1 px-3 py-2 rounded-xl border border-[#E6E8EE] hover:border-[#B7BFD9] bg-white text-[12px] text-[#45474D] hover:text-[#121317] transition-colors shrink-0"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
-                    <span>Đổi link</span>
+                    <span>Reset link</span>
                   </button>
                 )}
               </div>
             </div>
 
             <p className="text-[11.5px] text-[#6E717A]">
-              Bất kỳ thành viên nào mở link này và đăng nhập tài khoản Teams sẽ tự
-              động được thêm vào dự án{' '}
+              Anyone opening this link and authenticating with their account will automatically be added to project{' '}
               <span className="font-semibold text-[#121317]">{project.code}</span>{' '}
-              với vị trí{' '}
+              with role{' '}
               <span className="font-semibold text-[#0A4595]">
                 {ROLE_BADGE_META[inviteLinkRole].label}
               </span>
@@ -487,12 +486,12 @@ export const ProjectMembersModal: React.FC<ProjectMembersModalProps> = ({
               <div className="flex items-center justify-between">
                 <span className="text-[13.5px] font-semibold text-[#121317] flex items-center gap-2">
                   <UserPlus className="w-4 h-4 text-[#0A4595]" />
-                  <span>Thêm thành viên vào Project</span>
+                  <span>Add Project Member</span>
                 </span>
 
                 {unaddedDirectoryUsers.length > 0 && (
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[11px] text-[#6E717A]">Gợi ý nhanh:</span>
+                    <span className="text-[11px] text-[#6E717A]">Quick add:</span>
                     {unaddedDirectoryUsers.slice(0, 3).map((u) => (
                       <button
                         key={u.id}
@@ -517,7 +516,7 @@ export const ProjectMembersModal: React.FC<ProjectMembersModalProps> = ({
                     required
                     value={newEmail}
                     onChange={(e) => handleEmailInputChange(e.target.value)}
-                    placeholder="Email (vd: thanh.vien@logtechub.com)"
+                    placeholder="Email (e.g. member@logtechub.com)"
                     className="w-full px-3 py-2 rounded-xl border border-[#E6E8EE] focus:border-[#0A4595] text-[12.5px] text-[#121317] outline-none"
                   />
                 </div>
@@ -526,7 +525,7 @@ export const ProjectMembersModal: React.FC<ProjectMembersModalProps> = ({
                     type="text"
                     value={newFullName}
                     onChange={(e) => setNewFullName(e.target.value)}
-                    placeholder="Họ và tên"
+                    placeholder="Full Name"
                     className="w-full px-3 py-2 rounded-xl border border-[#E6E8EE] focus:border-[#0A4595] text-[12.5px] text-[#121317] outline-none"
                   />
                 </div>
@@ -538,10 +537,10 @@ export const ProjectMembersModal: React.FC<ProjectMembersModalProps> = ({
                     }
                     className="w-full px-2.5 py-2 rounded-xl border border-[#E6E8EE] focus:border-[#0A4595] text-[12.5px] text-[#121317] bg-white outline-none"
                   >
-                    <option value="viewer">Viewer (Xem)</option>
-                    <option value="writer">Writer (Sửa)</option>
+                    <option value="viewer">Viewer (Read-only)</option>
+                    <option value="writer">Writer (Edit)</option>
                     {currentIsCreator && (
-                      <option value="owner">Owner</option>
+                      <option value="owner">Owner (Full Access)</option>
                     )}
                   </select>
                 </div>
@@ -550,19 +549,19 @@ export const ProjectMembersModal: React.FC<ProjectMembersModalProps> = ({
                     type="submit"
                     className="w-full h-full py-2 px-3 rounded-xl bg-[#121317] hover:bg-[#0A4595] text-white text-[12.5px] font-medium transition-colors"
                   >
-                    Thêm
+                    Add
                   </button>
                 </div>
               </div>
             </form>
           ) : (
             <div className="p-3.5 rounded-xl bg-[#F7F8FA] border border-[#E6E8EE] text-[12.5px] text-[#45474D]">
-              Bạn đang có quyền{' '}
+              You currently have{' '}
               <span className="font-semibold text-[#121317]">
                 {ROLE_BADGE_META[currentUserRole].label}
-              </span>
-              . Chỉ <span className="font-semibold">Owner</span> của dự án mới có
-              thể thêm/xóa thành viên hoặc thay đổi phân quyền.
+              </span>{' '}
+              permissions. Only project <span className="font-semibold">Owners</span> can
+              manage members or change roles.
             </div>
           )}
 
@@ -571,28 +570,28 @@ export const ProjectMembersModal: React.FC<ProjectMembersModalProps> = ({
             <div className="p-2.5 rounded-xl border border-[#E6E8EE] bg-[#FAFBFD]">
               <div className="font-semibold text-[#121317] flex items-center gap-1.5 mb-0.5">
                 <Eye className="w-3.5 h-3.5 text-[#45474D]" />
-                <span>Viewer (Chỉ xem)</span>
+                <span>Viewer (Read-only)</span>
               </div>
               <p className="text-[#6E717A]">
-                Xem Timeline, Kanban, tài liệu. Khóa mọi thao tác chỉnh sửa.
+                Inspect timeline, Kanban cards, and deliverables. Editing is disabled.
               </p>
             </div>
             <div className="p-2.5 rounded-xl border border-[#E6E8EE] bg-[#FAFBFD]">
               <div className="font-semibold text-[#0A4595] flex items-center gap-1.5 mb-0.5">
                 <Pencil className="w-3.5 h-3.5 text-[#0A4595]" />
-                <span>Writer (Chỉnh sửa)</span>
+                <span>Writer (Edit)</span>
               </div>
               <p className="text-[#6E717A]">
-                Tạo/sửa Task, kéo Kanban, dịch ngày Timeline, upload tài liệu.
+                Create &amp; edit tasks, move Kanban cards, adjust dates, and upload deliverables.
               </p>
             </div>
             <div className="p-2.5 rounded-xl border border-[#E6E8EE] bg-[#FAFBFD]">
               <div className="font-semibold text-amber-800 flex items-center gap-1.5 mb-0.5">
                 <Crown className="w-3.5 h-3.5 text-amber-600" />
-                <span>Owner (Chủ dự án)</span>
+                <span>Owner (Project Lead)</span>
               </div>
               <p className="text-[#6E717A]">
-                Quản lý thành viên. Chỉ người tạo Project mới xóa được Owner hoặc xóa Project.
+                Manage members and access. Only the Project Creator can remove an Owner or delete the project.
               </p>
             </div>
           </div>
@@ -601,7 +600,7 @@ export const ProjectMembersModal: React.FC<ProjectMembersModalProps> = ({
           <div>
             <div className="flex items-center justify-between mb-2.5">
               <h3 className="text-[13px] font-semibold text-[#121317]">
-                Danh sách thành viên trong Project ({members.length})
+                Project Members ({members.length})
               </h3>
             </div>
 
@@ -644,13 +643,13 @@ export const ProjectMembersModal: React.FC<ProjectMembersModalProps> = ({
                           {memberIsCreator && (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-[10.5px] font-semibold">
                               <Crown className="w-3 h-3 text-amber-600" />
-                              <span>Người tạo Project</span>
+                              <span>Project Creator</span>
                             </span>
                           )}
                           {member.email.toLowerCase() ===
                             currentUser.email.toLowerCase() && (
                             <span className="px-2 py-0.5 rounded-full bg-[#F1F3F7] text-[#45474D] text-[10.5px]">
-                              Bạn
+                              You
                             </span>
                           )}
                         </div>
@@ -664,7 +663,7 @@ export const ProjectMembersModal: React.FC<ProjectMembersModalProps> = ({
                       {memberIsCreator ? (
                         <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-900 text-[12px] font-medium">
                           <Shield className="w-3.5 h-3.5 text-amber-600" />
-                          <span>Owner (Cố định)</span>
+                          <span>Owner (Creator)</span>
                         </span>
                       ) : canModifyThisMember ? (
                         <>
@@ -679,17 +678,17 @@ export const ProjectMembersModal: React.FC<ProjectMembersModalProps> = ({
                             }
                             className="px-2.5 py-1 rounded-lg border border-[#E6E8EE] hover:border-[#B7BFD9] bg-white text-[12px] font-medium text-[#121317] outline-none"
                           >
-                            <option value="viewer">Viewer (Chỉ xem)</option>
-                            <option value="writer">Writer (Sửa)</option>
+                            <option value="viewer">Viewer (Read-only)</option>
+                            <option value="writer">Writer (Edit)</option>
                             {currentIsCreator && (
-                              <option value="owner">Owner (Quản trị)</option>
+                              <option value="owner">Owner (Full Access)</option>
                             )}
                           </select>
 
                           <button
                             type="button"
                             onClick={() => handleRemoveMember(member)}
-                            title={`Xóa ${member.full_name} khỏi Project`}
+                            title={`Remove ${member.full_name} from project`}
                             className="p-1.5 rounded-lg text-[#6E717A] hover:text-rose-600 hover:bg-rose-50 transition-colors"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -699,7 +698,7 @@ export const ProjectMembersModal: React.FC<ProjectMembersModalProps> = ({
                         <span
                           title={
                             member.role === 'owner'
-                              ? 'Chỉ người tạo Project mới có quyền thay đổi hoặc xóa Owner'
+                              ? 'Only the Project Creator can modify or remove an Owner'
                               : undefined
                           }
                           className={`inline-flex items-center px-3 py-1 rounded-full text-[12px] font-medium border ${

@@ -47,7 +47,7 @@ export const CreateTeamModal: React.FC<CreateTeamModalProps> = ({
     const cleanName = name.trim();
     const cleanCode = code.trim().toUpperCase();
     if (!cleanName || !cleanCode) {
-      setErrorMsg('Vui lòng nhập tên và mã Team.');
+      setErrorMsg('Please enter both team name and code.');
       return;
     }
 
@@ -87,10 +87,10 @@ export const CreateTeamModal: React.FC<CreateTeamModalProps> = ({
                 id="create-team-title"
                 className="text-[15px] font-semibold text-[#121317]"
               >
-                Tạo Team mới (Quyền Admin)
+                Create New Team (Admin)
               </h2>
               <p className="text-[11.5px] text-[#6E717A]">
-                Phân bổ dự án và thành viên theo từng Team chuyên biệt
+                Organize projects and members into dedicated functional teams
               </p>
             </div>
           </div>
@@ -120,7 +120,7 @@ export const CreateTeamModal: React.FC<CreateTeamModalProps> = ({
                 htmlFor="team-name"
                 className="block text-[12px] font-medium text-[#45474D] mb-1"
               >
-                Tên Team
+                Team Name
               </label>
               <input
                 id="team-name"
@@ -128,7 +128,7 @@ export const CreateTeamModal: React.FC<CreateTeamModalProps> = ({
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Ví dụ: Logistics Operations"
+                placeholder="e.g. Logistics Operations"
                 className="w-full px-3.5 py-2 rounded-xl border border-[#E6E8EE] focus:border-[#0A4595] text-[13px] text-[#121317] outline-none"
               />
             </div>
@@ -137,7 +137,7 @@ export const CreateTeamModal: React.FC<CreateTeamModalProps> = ({
                 htmlFor="team-code"
                 className="block text-[12px] font-medium text-[#45474D] mb-1"
               >
-                Mã Team (Code)
+                Team Code
               </label>
               <input
                 id="team-code"
@@ -153,7 +153,7 @@ export const CreateTeamModal: React.FC<CreateTeamModalProps> = ({
 
           <div>
             <label className="block text-[12px] font-medium text-[#45474D] mb-1.5">
-              Icon đại diện Team
+              Team Icon
             </label>
             <div className="flex items-center gap-1.5 flex-wrap">
               {ICON_PRESETS.map((ic) => (
@@ -178,14 +178,14 @@ export const CreateTeamModal: React.FC<CreateTeamModalProps> = ({
               htmlFor="team-desc"
               className="block text-[12px] font-medium text-[#45474D] mb-1"
             >
-              Mô tả mục tiêu của Team
+              Team Mission &amp; Objectives
             </label>
             <textarea
               id="team-desc"
               rows={2}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Mô tả phạm vi trách nhiệm và mục tiêu của team..."
+              placeholder="Describe scope, responsibilities, and team objectives..."
               className="w-full px-3.5 py-2 rounded-xl border border-[#E6E8EE] focus:border-[#0A4595] text-[13px] text-[#121317] outline-none resize-none"
             />
           </div>
@@ -195,7 +195,7 @@ export const CreateTeamModal: React.FC<CreateTeamModalProps> = ({
               htmlFor="team-pm-select"
               className="block text-[12px] font-medium text-[#45474D] mb-1"
             >
-              Chọn PM (Trưởng nhóm phụ trách)
+              Team Lead / PM
             </label>
             <select
               id="team-pm-select"
@@ -213,7 +213,7 @@ export const CreateTeamModal: React.FC<CreateTeamModalProps> = ({
 
           <div>
             <label className="block text-[12px] font-medium text-[#45474D] mb-1.5">
-              Chọn thành viên thuộc Team ({selectedMemberIds.length})
+              Assign Team Members ({selectedMemberIds.length})
             </label>
             <div className="max-h-48 overflow-y-auto divide-y divide-[#E6E8EE] rounded-xl border border-[#E6E8EE]">
               {users.map((u) => {
@@ -257,13 +257,13 @@ export const CreateTeamModal: React.FC<CreateTeamModalProps> = ({
               onClick={onClose}
               className="px-4 py-2 rounded-full border border-[#E6E8EE] hover:bg-[#F1F3F7] text-[13px] font-medium text-[#45474D] transition-colors"
             >
-              Hủy
+              Cancel
             </button>
             <button
               type="submit"
               className="px-5 py-2 rounded-full bg-[#0A4595] hover:bg-[#1264D4] text-white text-[13px] font-medium transition-colors"
             >
-              Tạo Team
+              Create Team
             </button>
           </div>
         </form>

@@ -496,7 +496,7 @@ export const App: React.FC = () => {
   const requireWriteAccess = (): boolean => {
     if (!canUserEditProject(activeProject, currentUser)) {
       showToast(
-        `Quyền hạn [Viewer - Chỉ xem]: Bạn chỉ có quyền xem trên dự án ${activeProject.code}. Vui lòng liên hệ Owner để cấp quyền Writer (Sửa).`
+        `[Viewer - Read-only]: You only have viewing permissions on project ${activeProject.code}. Contact an Owner to grant Writer (Edit) access.`
       );
       return false;
     }
@@ -514,7 +514,7 @@ export const App: React.FC = () => {
     if (!targetProj) return;
 
     if (targetProj.share_token !== pendingInvite.token) {
-      showToast('Link mời tham gia dự án không hợp lệ hoặc đã được làm mới.');
+      showToast('The project invite link is invalid or has expired.');
       setPendingInvite(null);
       if (typeof window !== 'undefined') {
         window.history.replaceState({}, '', window.location.pathname);
@@ -575,7 +575,7 @@ export const App: React.FC = () => {
     }
 
     showToast(
-      `Đã tham gia dự án ${targetProj.code} · ${targetProj.name} với quyền ${grantedRole.toUpperCase()}!`
+      `Joined project ${targetProj.code} · ${targetProj.name} with ${grantedRole.toUpperCase()} permissions!`
     );
   }, [pendingInvite, showLandingPage, projects, currentUser]);
 
@@ -597,14 +597,14 @@ export const App: React.FC = () => {
     });
     setShowLandingPage(false);
     showToast(
-      `Đã đăng nhập: ${authedUser.full_name} (${authedUser.email}).`
+      `Signed in as ${authedUser.full_name} (${authedUser.email}).`
     );
   };
 
   const handleSignOut = () => {
     localStorage.removeItem(AUTH_STORAGE_KEY);
     setShowLandingPage(true);
-    showToast('Đã đăng xuất tài khoản.');
+    showToast('Signed out successfully.');
   };
 
   const handleSelectTeam = (teamId: string) => {
@@ -614,13 +614,13 @@ export const App: React.FC = () => {
     if (projs.length > 0 && !projs.some((p) => p.id === activeProjectId)) {
       setActiveProjectId(projs[0].id);
     }
-    showToast(`Đã chuyển sang ${targetTeam?.name || 'Team'}`);
+    showToast(`Switched to ${targetTeam?.name || 'Team'}`);
   };
 
   const handleCreateTeam = (newTeam: Team) => {
     setTeams((prev) => [...prev, newTeam]);
     setActiveTeamId(newTeam.id);
-    showToast(`Đã tạo team mới: ${newTeam.name} (${newTeam.code}).`);
+    showToast(`Created team: ${newTeam.name} (${newTeam.code}).`);
   };
 
   const handleUpdateMemberRole = async (
@@ -648,7 +648,7 @@ export const App: React.FC = () => {
         // Fallback local update
       }
       showToast(
-        `Đã cập nhật Position của ${targetUser.full_name} thành ${newRole}.`
+        `Updated position for ${targetUser.full_name} to ${newRole}.`
       );
     }
   };
@@ -683,7 +683,7 @@ export const App: React.FC = () => {
     } catch {
       // Local profile updated
     }
-    showToast('Đã cập nhật hồ sơ cá nhân thành công.');
+    showToast('Profile updated successfully.');
   };
 
   const handleUpdateProjectMembers = (
@@ -789,8 +789,8 @@ export const App: React.FC = () => {
     }
     showToast(
       exists
-        ? `Đã cập nhật Task ${savedTask.code}: ${savedTask.title}.`
-        : `Đã tạo Task mới ${savedTask.code}: ${savedTask.title}.`
+        ? `Updated task ${savedTask.code}: ${savedTask.title}.`
+        : `Created task ${savedTask.code}: ${savedTask.title}.`
     );
   };
 
@@ -805,7 +805,7 @@ export const App: React.FC = () => {
     if (selectedTask?.id === taskId) {
       setSelectedTask(null);
     }
-    showToast(`Đã xóa task ${target?.code ?? ''}.`);
+    showToast(`Deleted task ${target?.code ?? ''}.`);
   };
 
   const handleResetUserPassword = async (targetUser: UserProfile) => {
@@ -1122,7 +1122,7 @@ export const App: React.FC = () => {
     const target = projects.find((p) => p.id === projectIdToDelete);
     if (target && !isProjectCreator(target, currentUser)) {
       showToast(
-        'Chỉ người tạo Project (Creator Owner) mới có quyền xóa dự án này.'
+        'Only the project creator (Creator Owner) has permission to delete this project.'
       );
       return;
     }

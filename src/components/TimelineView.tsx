@@ -865,7 +865,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
                                   onAddTaskToMilestone(ms.id);
                                 }}
                                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white border border-[#B7CDF5] hover:bg-[#EEF3FB] text-[11.5px] font-medium text-[#0A4595] shadow-clean-xs transition-colors shrink-0"
-                                title={`Thêm Task mới vào Milestone ${ms.code}`}
+                                title={`Add new task to milestone ${ms.code}`}
                               >
                                 <Plus className="w-3 h-3" />
                                 <span>+ Task</span>
@@ -901,7 +901,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
                             {taskCoords.length === 0 ? (
                               <div className="py-3 px-4 rounded-xl bg-white/70 border border-dashed border-[#B7CDF5] flex items-center justify-between gap-3">
                                 <span className="text-[12.5px] text-[#6E717A]">
-                                  Milestone này chưa có Task nào.
+                                  No tasks in this milestone yet.
                                 </span>
                                 {onAddTaskToMilestone && (
                                   <button
@@ -910,7 +910,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
                                     className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-[#0A4595] text-white hover:bg-[#083778] text-[12px] font-medium transition-colors shadow-clean-xs"
                                   >
                                     <Plus className="w-3.5 h-3.5" />
-                                    <span>+ Thêm Task ngay</span>
+                                    <span>+ Add Task</span>
                                   </button>
                                 )}
                               </div>
