@@ -8,6 +8,7 @@ import type {
   ProjectMilestone,
   ProjectTask,
   ProjectTemplate,
+  Team,
   UserProfile,
 } from '../types.ts';
 
@@ -33,6 +34,7 @@ export const SEED_USERS: UserProfile[] = [
     role: 'Product Owner',
     teams_status: 'available',
     teams_webhook_url: 'https://outlook.office.com/webhook/logtechub-po',
+    is_admin: true,
   },
   {
     id: 'usr-azura-thuy',
@@ -156,10 +158,15 @@ export function authenticateLogtechubUser(
   const expected2026 = `${username}2026`;
   const cleanPass = passwordInput.trim();
 
-  if (cleanPass !== expectedCurrent && cleanPass !== expected2026) {
+  const isMatch =
+    (Boolean(matched.password) && cleanPass === matched.password) ||
+    cleanPass === expectedCurrent ||
+    cleanPass === expected2026;
+
+  if (!isMatch) {
     return {
       ok: false,
-      error: 'Invalid password. Use <username> + current year (e.g. james.nhan2026).',
+      error: 'Mật khẩu không chính xác. Vui lòng thử lại.',
     };
   }
 
@@ -425,6 +432,58 @@ export const SEED_TEMPLATES: ProjectTemplate[] = [
   },
 ];
 
+export const SEED_TEAMS: Team[] = [
+  {
+    id: 'team-control-tower',
+    code: 'SMSC',
+    name: 'Control Tower & SMSC',
+    description: 'Quản trị chuỗi cung ứng, tích hợp Tracker & giám sát Control Tower',
+    icon: '🏢',
+    pm_ids: ['usr-po-01'],
+    member_ids: [
+      'usr-po-01',
+      'usr-azura-thuy',
+      'usr-kenny-thuong',
+      'usr-brian-binh',
+      'usr-lynne-loc',
+      'usr-jasmine-thu',
+    ],
+    created_at: '2026-10-01',
+  },
+  {
+    id: 'team-efms',
+    code: 'EFMS',
+    name: 'Tú Mai (eFMS & eTMS)',
+    description: 'Hệ thống điều vận tự động, đối soát phụ phí 2 tầng và API hải quan',
+    icon: '🚢',
+    pm_ids: ['usr-po-01', 'usr-azura-thuy'],
+    member_ids: [
+      'usr-po-01',
+      'usr-azura-thuy',
+      'usr-kenny-thuong',
+      'usr-daley-thai',
+      'usr-jasmine-thu',
+      'usr-edwin-tai',
+    ],
+    created_at: '2026-10-20',
+  },
+  {
+    id: 'team-rnd',
+    code: 'RND',
+    name: 'Logtechub R&D Innovation',
+    description: 'Nghiên cứu công nghệ mới, AI Agent và kiến trúc nền tảng',
+    icon: '⚡',
+    pm_ids: ['usr-po-01', 'usr-anatolius-thuan'],
+    member_ids: [
+      'usr-po-01',
+      'usr-anatolius-thuan',
+      'usr-alex-phuong',
+      'usr-brian-binh',
+    ],
+    created_at: '2026-11-01',
+  },
+];
+
 export const SEED_PROJECTS: Project[] = [
   {
     id: 'proj-smsc-1903',
@@ -435,6 +494,7 @@ export const SEED_PROJECTS: Project[] = [
     template_id: 'tpl-standard-sw',
     status: 'at_risk',
     owner_id: 'usr-po-01',
+    team_id: 'team-control-tower',
     odoo_project_id: 63,
     odoo_project_url: `${DEFAULT_ODOO_BASE_URL}/web#id=63&model=project.project&view_type=form`,
     start_date: '2026-10-01',
@@ -508,6 +568,7 @@ export const SEED_PROJECTS: Project[] = [
     template_id: 'tpl-erp-odoo',
     status: 'on_track',
     owner_id: 'usr-po-01',
+    team_id: 'team-efms',
     odoo_project_id: 58,
     odoo_project_url: `${DEFAULT_ODOO_BASE_URL}/web#id=58&model=project.project&view_type=form`,
     start_date: '2026-10-20',

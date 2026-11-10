@@ -384,17 +384,41 @@ export async function handleApiAndHealthRequest(req, res) {
         return true;
       }
 
+      const pool = await getDbPool();
+      let customPassword = null;
+      let dbUserRow = null;
+
+      if (pool) {
+        try {
+          const checkRes = await pool.query(
+            `SELECT custom_password, full_name, avatar_initials, avatar_url, role, is_admin
+             FROM users_directory WHERE email = $1 LIMIT 1`,
+            [normalizedEmail]
+          );
+          if (checkRes.rows.length > 0) {
+            dbUserRow = checkRes.rows[0];
+            customPassword = dbUserRow.custom_password || null;
+          }
+        } catch {
+          // Fallback if column not yet added
+        }
+      }
+
       const currentYear = new Date().getFullYear();
       const expectedCurrent = `${username}${currentYear}`;
       const expected2026 = `${username}2026`;
 
-      if (rawPassword !== expectedCurrent && rawPassword !== expected2026) {
+      const isMatch =
+        (Boolean(customPassword) && rawPassword === customPassword) ||
+        rawPassword === expectedCurrent ||
+        rawPassword === expected2026;
+
+      if (!isMatch) {
         sendJson(
           res,
           401,
           {
-            error:
-              'Mật khẩu không chính xác. Vui lòng nhập theo cú pháp <username> + năm hiện tại (ví dụ: james.nhan2026).',
+            error: 'Mật khẩu không chính xác. Vui lòng thử lại.',
           },
           reqOrigin
         );
@@ -404,23 +428,27 @@ export async function handleApiAndHealthRequest(req, res) {
       const userProfile = {
         id: matchedAccount.id,
         microsoft_entra_id: matchedAccount.microsoft_entra_id,
-        full_name: matchedAccount.full_name,
+        full_name: dbUserRow?.full_name || matchedAccount.full_name,
         email: normalizedEmail,
-        avatar_initials: matchedAccount.avatar_initials,
-        role: matchedAccount.role,
+        avatar_initials: dbUserRow?.avatar_initials || matchedAccount.avatar_initials,
+        avatar_url: dbUserRow?.avatar_url || undefined,
+        role: dbUserRow?.role || matchedAccount.role,
         teams_status: 'available',
         teams_webhook_url: matchedAccount.teams_webhook_url,
+        is_admin:
+          dbUserRow?.is_admin ||
+          normalizedEmail === 'james.nhan@logtechub.com' ||
+          matchedAccount.id === 'usr-po-01',
       };
 
-      const pool = await getDbPool();
       if (pool) {
         await pool.query(
           `INSERT INTO users_directory (id, microsoft_entra_id, full_name, email, avatar_initials, role, teams_status, teams_webhook_url)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
            ON CONFLICT (email) DO UPDATE SET
-             full_name = EXCLUDED.full_name,
-             avatar_initials = EXCLUDED.avatar_initials,
-             role = EXCLUDED.role,
+             full_name = COALESCE(users_directory.full_name, EXCLUDED.full_name),
+             avatar_initials = COALESCE(users_directory.avatar_initials, EXCLUDED.avatar_initials),
+             role = COALESCE(users_directory.role, EXCLUDED.role),
              teams_status = 'available'`,
           [
             userProfile.id,
@@ -446,6 +474,67 @@ export async function handleApiAndHealthRequest(req, res) {
         res,
         500,
         { error: err instanceof Error ? err.message : 'Authentication failed' },
+        reqOrigin
+      );
+    }
+    return true;
+  }
+
+  // 2b-2. UPDATE USER PROFILE (Full Name, Role / Position, Avatar, Password)
+  if (
+    pathname === '/api/users/profile' &&
+    (req.method === 'POST' || req.method === 'PUT')
+  ) {
+    try {
+      const body = await readJsonBody(req);
+      const email = String(body.email || '').trim().toLowerCase();
+      if (!email) {
+        sendJson(res, 400, { error: 'Missing email' }, reqOrigin);
+        return true;
+      }
+      const pool = await getDbPool();
+      if (pool) {
+        await pool.query(`
+          ALTER TABLE users_directory ADD COLUMN IF NOT EXISTS custom_password TEXT;
+          ALTER TABLE users_directory ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+          ALTER TABLE users_directory ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE;
+        `);
+        const updates = [];
+        const values = [email];
+        let idx = 2;
+        if (body.fullName) {
+          updates.push(`full_name = $${idx++}`);
+          values.push(body.fullName.trim());
+        }
+        if (body.avatarInitials) {
+          updates.push(`avatar_initials = $${idx++}`);
+          values.push(body.avatarInitials.trim());
+        }
+        if (body.avatarUrl !== undefined) {
+          updates.push(`avatar_url = $${idx++}`);
+          values.push(body.avatarUrl ? body.avatarUrl.trim() : null);
+        }
+        if (body.role) {
+          updates.push(`role = $${idx++}`);
+          values.push(body.role.trim());
+        }
+        if (body.newPassword) {
+          updates.push(`custom_password = $${idx++}`);
+          values.push(body.newPassword.trim());
+        }
+        if (updates.length > 0) {
+          await pool.query(
+            `UPDATE users_directory SET ${updates.join(', ')} WHERE email = $1`,
+            values
+          );
+        }
+      }
+      sendJson(res, 200, { ok: true, message: 'Profile updated' }, reqOrigin);
+    } catch (err) {
+      sendJson(
+        res,
+        500,
+        { error: err instanceof Error ? err.message : 'Update profile failed' },
         reqOrigin
       );
     }

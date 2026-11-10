@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
   Box,
+  Check,
   ChevronDown,
   FolderOpen,
   Inbox,
@@ -12,9 +13,18 @@ import {
   Send,
   Settings,
   SquarePen,
+  User,
   Users,
 } from 'lucide-react';
-import { getUserProjectRole, type Project, type UserProfile } from '../types.ts';
+import {
+  canUserAccessTeam,
+  getUserProjectRole,
+  isUserAdmin,
+  isUserTeamPM,
+  type Project,
+  type Team,
+  type UserProfile,
+} from '../types.ts';
 
 export type SidebarSection =
   | 'inbox'
@@ -30,6 +40,10 @@ interface SidebarProps {
   projects: Project[];
   activeProjectId: string;
   onSelectProject: (projectId: string) => void;
+  teams: Team[];
+  activeTeamId: string;
+  onSelectTeam: (teamId: string) => void;
+  onOpenCreateTeam?: () => void;
   workspaceOpen: boolean;
   onToggleWorkspace: () => void;
   teamsOpen: boolean;
@@ -41,6 +55,7 @@ interface SidebarProps {
   onBackToLanding: () => void;
   onOpenTemplateModal: () => void;
   onOpenEditProject: (projectId: string) => void;
+  onOpenUserProfile: () => void;
   onOpenAuthModal?: () => void;
   onSignOut?: () => void;
   onResetDemo: () => void;
@@ -52,6 +67,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   projects,
   activeProjectId,
   onSelectProject,
+  teams,
+  activeTeamId,
+  onSelectTeam,
+  onOpenCreateTeam,
   workspaceOpen,
   onToggleWorkspace,
   teamsOpen,
@@ -59,63 +78,285 @@ export const Sidebar: React.FC<SidebarProps> = ({
   inboxBadgeCount,
   filesCount,
   currentUser,
-  totalTeamMembers,
-  onBackToLanding,
   onOpenTemplateModal,
   onOpenEditProject,
+  onOpenUserProfile,
   onOpenAuthModal,
   onSignOut,
   onResetDemo,
 }) => {
+  const [showBrandMenu, setShowBrandMenu] = useState(false);
+  const [showTeamMenu, setShowTeamMenu] = useState(false);
+  const brandMenuRef = useRef<HTMLDivElement>(null);
+  const teamMenuRef = useRef<HTMLDivElement>(null);
+
+  const isAdmin = isUserAdmin(currentUser);
+  const activeTeam = teams.find((t) => t.id === activeTeamId) ?? teams[0];
+
+  // Admin sees all teams; other users only see teams they belong to
+  const accessibleTeams = teams.filter((t) => canUserAccessTeam(t, currentUser));
+
+  // Projects filtered by the currently active team
+  const visibleProjects = projects.filter(
+    (p) => !p.team_id || p.team_id === activeTeam?.id
+  );
+
+  const isPmOfActiveTeam = isUserTeamPM(activeTeam, currentUser);
+
+  // Close menus on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        brandMenuRef.current &&
+        !brandMenuRef.current.contains(e.target as Node)
+      ) {
+        setShowBrandMenu(false);
+      }
+      if (
+        teamMenuRef.current &&
+        !teamMenuRef.current.contains(e.target as Node)
+      ) {
+        setShowTeamMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   return (
     <aside className="w-full lg:w-64 shrink-0 bg-[#F7F8FA] border-b lg:border-b-0 lg:border-r border-[#E6E8EE] flex flex-col justify-between select-none">
-      <div className="p-3.5 space-y-5">
-        {/* Top Workspace Header Row (Matches Linear / Google Antigravity style) */}
-        <div className="flex items-center justify-between px-1.5">
+      <div className="p-3.5 space-y-4">
+        {/* Top Workspace Header Row: Brand Button with Profile / Options Menu */}
+        <div className="relative" ref={brandMenuRef}>
+          <div className="flex items-center justify-between px-1">
+            <button
+              type="button"
+              onClick={() => setShowBrandMenu((v) => !v)}
+              className="flex items-center gap-2 text-[#121317] font-semibold text-[14px] hover:bg-[#ECEEF3] px-2 py-1.5 rounded-xl transition-colors"
+              title="Tùy chọn tài khoản & không gian làm việc"
+            >
+              <img
+                src="/favicon.png"
+                alt="Tianlane"
+                className="w-5 h-5 rounded-md object-contain shadow-clean-xs"
+              />
+              <span className="truncate">tianlane</span>
+              <ChevronDown
+                className={`w-3.5 h-3.5 text-[#6E717A] transition-transform ${
+                  showBrandMenu ? 'rotate-180 text-[#0A4595]' : ''
+                }`}
+                aria-hidden="true"
+              />
+            </button>
+
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => {
+                  onSelectSection('projects');
+                  const el = document.querySelector<HTMLInputElement>(
+                    'input[placeholder="Add Filter..."]'
+                  );
+                  el?.focus();
+                }}
+                aria-label="Search workspace"
+                title="Filter & search"
+                className="w-7 h-7 rounded-full flex items-center justify-center text-[#45474D] hover:text-[#121317] hover:bg-[#ECEEF3] transition-colors"
+              >
+                <Search className="w-3.5 h-3.5" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onClick={onOpenTemplateModal}
+                aria-label="New project from template"
+                title="New project from template"
+                className="w-7 h-7 rounded-full bg-white border border-[#E6E8EE] hover:border-[#B7BFD9] flex items-center justify-center text-[#121317] shadow-clean-xs transition-colors"
+              >
+                <SquarePen className="w-3.5 h-3.5" aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+
+          {/* Brand Dropdown Menu (Profile, Settings, Log out) */}
+          {showBrandMenu && (
+            <div className="absolute top-full left-0 mt-1.5 w-60 z-40 bg-white border border-[#E6E8EE] rounded-2xl shadow-clean-lg p-2 animate-in fade-in">
+              <div className="p-2.5 rounded-xl bg-[#F7F8FA] border border-[#E6E8EE] mb-2 flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-full bg-[#0A4595] text-white flex items-center justify-center font-semibold text-[13px] shrink-0 overflow-hidden">
+                  {currentUser.avatar_url ? (
+                    <img
+                      src={currentUser.avatar_url}
+                      alt={currentUser.full_name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span>{currentUser.avatar_initials}</span>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[13px] font-semibold text-[#121317] truncate flex items-center gap-1">
+                    <span>{currentUser.full_name}</span>
+                    {isAdmin && (
+                      <span className="text-[9.5px] px-1 rounded bg-amber-100 text-amber-800 font-bold uppercase">
+                        Admin
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[11px] font-mono text-[#6E717A] truncate">
+                    {currentUser.email}
+                  </div>
+                  <div className="text-[11px] text-[#0A4595] truncate">
+                    {currentUser.role}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-0.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowBrandMenu(false);
+                    onOpenUserProfile();
+                  }}
+                  className="w-full px-2.5 py-1.5 rounded-lg text-left text-[12.5px] font-medium text-[#121317] hover:bg-[#F1F3F7] flex items-center gap-2 transition-colors"
+                >
+                  <User className="w-3.5 h-3.5 text-[#0A4595]" />
+                  <span>Chỉnh sửa hồ sơ &amp; Đổi mật khẩu</span>
+                </button>
+
+                {onOpenAuthModal && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowBrandMenu(false);
+                      onOpenAuthModal();
+                    }}
+                    className="w-full px-2.5 py-1.5 rounded-lg text-left text-[12.5px] text-[#45474D] hover:bg-[#F1F3F7] hover:text-[#121317] flex items-center gap-2 transition-colors"
+                  >
+                    <Users className="w-3.5 h-3.5" />
+                    <span>Đổi tài khoản đăng nhập</span>
+                  </button>
+                )}
+
+                <div className="border-t border-[#E6E8EE] my-1" />
+
+                {onSignOut && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowBrandMenu(false);
+                      onSignOut();
+                    }}
+                    className="w-full px-2.5 py-1.5 rounded-lg text-left text-[12.5px] font-medium text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition-colors"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Đăng xuất</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* =========================================================================
+         * TEAM SWITCHER DROPDOWN (Right directly above Inbox)
+         * ========================================================================= */}
+        <div className="relative" ref={teamMenuRef}>
           <button
             type="button"
-            onClick={onBackToLanding}
-            className="flex items-center gap-2 text-[#121317] font-medium text-[14px] hover:opacity-80 transition-opacity"
-            title="Back to Tianlane landing page"
+            onClick={() => setShowTeamMenu((v) => !v)}
+            className="w-full px-2.5 py-2 rounded-xl bg-white border border-[#E6E8EE] hover:border-[#0A4595] shadow-clean-xs flex items-center justify-between transition-all group cursor-pointer"
+            title="Nhấn để chọn và chuyển Team"
           >
-            <img
-              src="/favicon.png"
-              alt="Tianlane"
-              className="w-5 h-5 rounded-md object-contain shadow-clean-xs"
-            />
-            <span className="truncate">tianlane</span>
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="w-6 h-6 rounded-lg bg-[#EEF3FB] text-[#0A4595] flex items-center justify-center text-[13px] shrink-0">
+                {activeTeam?.icon || '🏢'}
+              </span>
+              <div className="text-left truncate">
+                <div className="text-[12.5px] font-semibold text-[#121317] truncate leading-tight">
+                  {activeTeam?.name || 'Chọn Team'}
+                </div>
+                <div className="text-[10.5px] text-[#6E717A] truncate">
+                  {isAdmin
+                    ? 'Admin · Toàn quyền'
+                    : isPmOfActiveTeam
+                    ? 'PM Team'
+                    : 'Thành viên'}
+                </div>
+              </div>
+            </div>
             <ChevronDown
-              className="w-3.5 h-3.5 text-[#6E717A]"
-              aria-hidden="true"
+              className={`w-3.5 h-3.5 text-[#6E717A] group-hover:text-[#0A4595] shrink-0 ml-1 transition-transform ${
+                showTeamMenu ? 'rotate-180 text-[#0A4595]' : ''
+              }`}
             />
           </button>
 
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => {
-                onSelectSection('projects');
-                const el = document.querySelector<HTMLInputElement>(
-                  'input[placeholder="Add Filter..."]'
-                );
-                el?.focus();
-              }}
-              aria-label="Search workspace"
-              title="Filter & search"
-              className="w-7 h-7 rounded-full flex items-center justify-center text-[#45474D] hover:text-[#121317] hover:bg-[#ECEEF3] transition-colors"
-            >
-              <Search className="w-3.5 h-3.5" aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              onClick={onOpenTemplateModal}
-              aria-label="New project from template"
-              title="New project from template"
-              className="w-7 h-7 rounded-full bg-white border border-[#E6E8EE] hover:border-[#B7BFD9] flex items-center justify-center text-[#121317] shadow-clean-xs transition-colors"
-            >
-              <SquarePen className="w-3.5 h-3.5" aria-hidden="true" />
-            </button>
-          </div>
+          {showTeamMenu && (
+            <div className="absolute top-full left-0 right-0 mt-1.5 z-40 bg-white border border-[#E6E8EE] rounded-2xl shadow-clean-lg p-1.5 overflow-hidden animate-in fade-in">
+              <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#6E717A] border-b border-[#E6E8EE] flex items-center justify-between">
+                <span>{isAdmin ? 'Tất cả Team (Quyền Admin)' : 'Team của bạn'}</span>
+                <span className="text-[10px] text-[#0A4595] font-mono">
+                  {accessibleTeams.length}
+                </span>
+              </div>
+
+              <div className="max-h-56 overflow-y-auto py-1 space-y-0.5">
+                {accessibleTeams.map((team) => {
+                  const isSelected = team.id === activeTeam?.id;
+                  const isPm = team.pm_ids?.includes(currentUser.id);
+                  return (
+                    <button
+                      key={team.id}
+                      type="button"
+                      onClick={() => {
+                        onSelectTeam(team.id);
+                        setShowTeamMenu(false);
+                      }}
+                      className={`w-full px-2.5 py-2 text-left rounded-xl flex items-center justify-between text-[12.5px] transition-colors ${
+                        isSelected
+                          ? 'bg-[#EEF3FB] text-[#0A4595] font-semibold'
+                          : 'text-[#121317] hover:bg-[#F7F8FA]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 truncate">
+                        <span className="text-[14px]">{team.icon || '🏢'}</span>
+                        <div className="truncate">
+                          <div className="truncate leading-snug">{team.name}</div>
+                          <div className="text-[10.5px] text-[#6E717A] font-normal truncate">
+                            {team.code} · {team.member_ids?.length || 0} members
+                            {isPm && (
+                              <span className="ml-1 text-[#0A4595] font-semibold">
+                                · PM
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      {isSelected && (
+                        <Check className="w-3.5 h-3.5 text-[#0A4595] shrink-0" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {isAdmin && onOpenCreateTeam && (
+                <div className="border-t border-[#E6E8EE] pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowTeamMenu(false);
+                      onOpenCreateTeam();
+                    }}
+                    className="w-full px-2.5 py-1.5 text-left text-[12px] font-semibold text-[#0A4595] hover:bg-[#EEF3FB] rounded-xl flex items-center gap-1.5 transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Tạo Team mới...</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Primary Navigation: Inbox & Agent */}
@@ -156,32 +397,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         </nav>
 
-        {/* Workspace Collapsible Section -> Projects */}
+        {/* Workspace Collapsible Section: Projects belonging to activeTeam */}
         <div className="space-y-1">
-          <div className="flex items-center justify-between px-2">
-            <button
-              type="button"
-              onClick={onToggleWorkspace}
-              className="flex items-center gap-1 text-[12px] font-medium text-[#6E717A] hover:text-[#121317]"
-            >
-              <span>Workspace</span>
-              <ChevronDown
-                className={`w-3 h-3 transition-transform ${
-                  workspaceOpen ? '' : '-rotate-90'
-                }`}
-                aria-hidden="true"
-              />
-            </button>
-            <button
-              type="button"
-              onClick={onOpenTemplateModal}
-              title="New project from template"
-              aria-label="Add project"
-              className="w-5 h-5 rounded flex items-center justify-center text-[#6E717A] hover:text-[#0A4595] hover:bg-[#ECEEF3]"
-            >
-              <Plus className="w-3.5 h-3.5" aria-hidden="true" />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={onToggleWorkspace}
+            className="px-2 flex items-center gap-1 text-[12px] font-medium text-[#6E717A] hover:text-[#121317]"
+          >
+            <span>Projects ({activeTeam?.code || 'Team'})</span>
+            <ChevronDown
+              className={`w-3 h-3 transition-transform ${
+                workspaceOpen ? '' : '-rotate-90'
+              }`}
+              aria-hidden="true"
+            />
+          </button>
 
           {workspaceOpen && (
             <div className="space-y-0.5">
@@ -199,44 +429,46 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <span>Projects</span>
                 </span>
                 <span className="text-[11.5px] font-mono text-[#6E717A] tabular-nums">
-                  {projects.length}
+                  {visibleProjects.length}
                 </span>
               </button>
 
-              {/* Project items nested under Projects */}
-              <div className="pl-6 space-y-0.5 pt-0.5">
-                {projects.map((proj) => {
+              <div className="pl-6 space-y-0.5">
+                {visibleProjects.map((proj) => {
                   const isSelected =
-                    activeSection === 'projects' && proj.id === activeProjectId;
+                    activeSection === 'projects' && activeProjectId === proj.id;
                   const myRole = getUserProjectRole(proj, currentUser);
+
                   return (
                     <div
                       key={proj.id}
-                      className={`group w-full px-2.5 py-1.5 rounded-lg text-[12.5px] flex items-center justify-between gap-1.5 transition-colors ${
+                      onClick={() => {
+                        onSelectProject(proj.id);
+                        onSelectSection('projects');
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          onSelectProject(proj.id);
+                          onSelectSection('projects');
+                        }
+                      }}
+                      className={`group w-full text-left px-2.5 py-1.5 rounded-lg text-[13px] flex items-center justify-between gap-1 transition-colors cursor-pointer ${
                         isSelected
-                          ? 'bg-white text-[#0A4595] font-medium shadow-clean-xs'
+                          ? 'bg-[#ECEEF3] text-[#121317] font-medium'
                           : 'text-[#45474D] hover:bg-[#ECEEF3]/60 hover:text-[#121317]'
                       }`}
                     >
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onSelectProject(proj.id);
-                          onSelectSection('projects');
-                        }}
-                        className="flex-1 text-left truncate"
-                      >
-                        {proj.name}
-                      </button>
-                      <div className="flex items-center gap-1 shrink-0">
+                      <span className="truncate">{proj.name}</span>
+                      <div className="flex items-center gap-1.5 shrink-0">
                         <span
-                          title={`Quyền của bạn: ${myRole.toUpperCase()}`}
-                          className={`px-1.5 py-0.2 rounded text-[9.5px] font-semibold uppercase ${
+                          className={`text-[9.5px] font-semibold uppercase px-1 rounded ${
                             myRole === 'owner'
                               ? 'bg-amber-100 text-amber-800'
                               : myRole === 'writer'
                               ? 'bg-[#EEF3FB] text-[#0A4595]'
-                              : 'bg-gray-200 text-gray-600'
+                              : 'bg-gray-100 text-[#6E717A]'
                           }`}
                         >
                           {myRole === 'owner'
@@ -268,17 +500,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   );
                 })}
 
-                <button
-                  type="button"
-                  onClick={onOpenTemplateModal}
-                  className="w-full text-left px-2.5 py-1.5 rounded-lg text-[12.5px] text-[#0A4595] hover:bg-[#ECEEF3]/60 flex items-center gap-1.5 font-medium"
-                >
-                  <Plus className="w-3.5 h-3.5" aria-hidden="true" />
-                  <span>Add project</span>
-                </button>
+                {(isAdmin || isPmOfActiveTeam) && (
+                  <button
+                    type="button"
+                    onClick={onOpenTemplateModal}
+                    className="w-full text-left px-2.5 py-1.5 rounded-lg text-[12.5px] text-[#0A4595] hover:bg-[#ECEEF3]/60 flex items-center gap-1.5 font-medium cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" aria-hidden="true" />
+                    <span>Add project ({activeTeam?.code})</span>
+                  </button>
+                )}
               </div>
 
-              {/* Files & Deliverables Hub */}
+              {/* Files Hub */}
               <button
                 type="button"
                 onClick={() => onSelectSection('files')}
@@ -300,14 +534,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </div>
 
-        {/* Your teams Collapsible Section */}
+        {/* Your Team Section */}
         <div className="space-y-1">
           <button
             type="button"
             onClick={onToggleTeams}
             className="px-2 flex items-center gap-1 text-[12px] font-medium text-[#6E717A] hover:text-[#121317]"
           >
-            <span>Your teams</span>
+            <span>Team &amp; Access</span>
             <ChevronDown
               className={`w-3 h-3 transition-transform ${
                 teamsOpen ? '' : '-rotate-90'
@@ -329,12 +563,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
               >
                 <span className="flex items-center gap-2.5">
                   <span className="w-4 h-4 rounded bg-[#0A4595] text-white text-[10px] font-semibold inline-flex items-center justify-center">
-                    T
+                    {activeTeam?.icon || 'T'}
                   </span>
-                  <span>Tianlane Team</span>
+                  <span className="truncate">{activeTeam?.name || 'Team'}</span>
                 </span>
                 <span className="text-[11.5px] font-mono text-[#6E717A] tabular-nums">
-                  {totalTeamMembers}
+                  {activeTeam?.member_ids?.length || 0}
                 </span>
               </button>
 
@@ -345,22 +579,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   className="w-full text-left px-2.5 py-1 rounded-lg text-[12.5px] text-[#45474D] hover:bg-[#ECEEF3]/60 hover:text-[#121317] flex items-center gap-2"
                 >
                   <Users className="w-3.5 h-3.5" aria-hidden="true" />
-                  <span>Members ({totalTeamMembers})</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onSelectSection('projects')}
-                  className="w-full text-left px-2.5 py-1 rounded-lg text-[12.5px] text-[#45474D] hover:bg-[#ECEEF3]/60 hover:text-[#121317] flex items-center gap-2"
-                >
-                  <Box className="w-3.5 h-3.5" aria-hidden="true" />
-                  <span>Projects</span>
+                  <span>Thành viên &amp; Position</span>
                 </button>
               </div>
             </div>
           )}
         </div>
 
-        {/* Settings (Project Standard Settings) */}
+        {/* Settings (Standards) */}
         <div className="pt-2 border-t border-[#E6E8EE]">
           <button
             type="button"
@@ -382,29 +608,47 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
 
-      {/* Sidebar Footer: Active SSO Profile & Reset */}
-      <div className="p-3.5 border-t border-[#E6E8EE] space-y-2.5">
-        <div className="flex items-center justify-between gap-2 px-1">
-          <div className="min-w-0">
-            <div className="text-[12.5px] font-medium text-[#121317] truncate">
-              {currentUser.full_name}
+      {/* Sidebar Footer: Profile Trigger & Reset */}
+      <div className="p-3.5 border-t border-[#E6E8EE] space-y-2.5 bg-white/50">
+        <div
+          onClick={onOpenUserProfile}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') onOpenUserProfile();
+          }}
+          className="flex items-center justify-between gap-2 p-1.5 rounded-xl hover:bg-[#ECEEF3] cursor-pointer transition-colors"
+          title="Nhấn để mở Hồ sơ & Đổi mật khẩu"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-8 h-8 rounded-full bg-[#0A4595] text-white flex items-center justify-center font-semibold text-[12px] shrink-0 overflow-hidden">
+              {currentUser.avatar_url ? (
+                <img
+                  src={currentUser.avatar_url}
+                  alt={currentUser.full_name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span>{currentUser.avatar_initials}</span>
+              )}
             </div>
-            <div className="text-[10.5px] font-mono text-[#0A4595] truncate">
-              {currentUser.email}
-            </div>
-            <div className="text-[11px] text-[#6E717A] truncate">
-              {currentUser.role}
+            <div className="min-w-0">
+              <div className="text-[12.5px] font-semibold text-[#121317] truncate flex items-center gap-1">
+                <span>{currentUser.full_name}</span>
+                {isAdmin && (
+                  <span className="text-[9px] px-1 rounded bg-amber-100 text-amber-800 font-bold uppercase">
+                    Admin
+                  </span>
+                )}
+              </div>
+              <div className="text-[11px] text-[#6E717A] truncate">
+                {currentUser.role}
+              </div>
             </div>
           </div>
-          {onOpenAuthModal && (
-            <button
-              type="button"
-              onClick={onOpenAuthModal}
-              className="px-2.5 py-1 rounded-full border border-[#E6E8EE] bg-white hover:border-[#0A4595] text-[11px] text-[#0A4595] font-medium shrink-0"
-            >
-              Đổi TK
-            </button>
-          )}
+          <span className="text-[11px] font-medium text-[#0A4595] px-2 py-0.5 rounded-full border border-[#B7CDF5] bg-[#EEF3FB] shrink-0">
+            Hồ sơ
+          </span>
         </div>
 
         <div className="grid grid-cols-2 gap-1.5">

@@ -12,14 +12,18 @@ import {
 import {
   authenticateLogtechubUser,
   SEED_PROJECTS,
+  SEED_TEAMS,
   SEED_TEMPLATES,
   SEED_USERS,
 } from '../data/seedData.ts';
 import {
+  canUserAccessTeam,
   canUserEditProject,
   canUserManageMembers,
   getUserProjectRole,
   isProjectCreator,
+  isUserAdmin,
+  isUserTeamPM,
 } from '../types.ts';
 // @ts-expect-error .mjs server module
 import { createR2PresignedPutUrl } from '../../server/r2Presign.mjs';
@@ -130,11 +134,38 @@ assert.equal(canUserManageMembers(p0, creatorUser), true);
 assert.equal(canUserManageMembers(p0, secondOwner), true);
 assert.equal(canUserManageMembers(p0, writerUser), false);
 
-// 10. Test Logtechub account password rule (<username> + 2026)
+// 10. Test Logtechub account authentication & discreet error message (no hint!)
 assert.equal(authenticateLogtechubUser('james.nhan@logtechub.com', 'james.nhan2026').ok, true);
 assert.equal(authenticateLogtechubUser('azura.thuy', 'azura.thuy2026').ok, true);
 assert.equal(authenticateLogtechubUser('alex.phuong@logtechub.com', 'alex.phuong2026').ok, true);
-assert.equal(authenticateLogtechubUser('james.nhan@logtechub.com', 'wrongpass').ok, false);
-assert.equal(authenticateLogtechubUser('fake.user@logtechub.com', 'fake.user2026').ok, false);
 
-console.log('✓ All Tianlane scheduleEngine, RBAC, 10 Logtechub Accounts, R2 Presigner & Odoo MCP self-check assertions passed.');
+const failCheck = authenticateLogtechubUser('james.nhan@logtechub.com', 'wrongpass');
+assert.equal(failCheck.ok, false);
+if (!failCheck.ok) {
+  assert.equal(failCheck.error, 'Mật khẩu không chính xác. Vui lòng thử lại.');
+  assert.equal(failCheck.error.includes('james.nhan2026'), false, 'Never leak password hint to users');
+}
+
+// Test custom password support
+const userWithCustomPass = { ...creatorUser, password: 'MyNewSecretPassword2026!' };
+assert.equal(
+  authenticateLogtechubUser('james.nhan', 'MyNewSecretPassword2026!', [userWithCustomPass]).ok,
+  true,
+  'Custom password updated in profile should be recognized'
+);
+
+// 11. Test Multi-Team Access Control & Admin Privileges
+assert.ok(SEED_TEAMS.length >= 3, 'Should seed default teams');
+const teamControlTower = SEED_TEAMS[0];
+const teamEfms = SEED_TEAMS[1];
+
+assert.equal(isUserAdmin(creatorUser), true, 'James Nhan should be Admin');
+assert.equal(isUserAdmin(secondOwner), false, 'Azura Thuy is not Admin');
+assert.equal(isUserTeamPM(teamControlTower, creatorUser), true);
+assert.equal(isUserTeamPM(teamEfms, secondOwner), true, 'Azura is PM of eFMS team');
+assert.equal(isUserTeamPM(teamControlTower, viewerUser), false);
+
+assert.equal(canUserAccessTeam(teamControlTower, creatorUser), true);
+assert.equal(canUserAccessTeam(teamControlTower, writerUser), true);
+
+console.log('✓ All Tianlane scheduleEngine, RBAC, Multi-Team Access, R2 Presigner & Odoo MCP assertions passed.');

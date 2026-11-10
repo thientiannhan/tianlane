@@ -15,6 +15,7 @@ import {
   type ProjectMilestone,
   type ProjectTask,
   type ProjectTemplate,
+  type Team,
   type UserProfile,
 } from './types.ts';
 import {
@@ -28,6 +29,7 @@ import {
   SEED_PROJECTS,
   SEED_REVISION_LOGS,
   SEED_TASKS,
+  SEED_TEAMS,
   SEED_TEMPLATES,
   SEED_USERS,
 } from './data/seedData.ts';
@@ -61,6 +63,8 @@ import { ProjectTopBar } from './components/ProjectTopBar.tsx';
 import { PwaInstallModal } from './components/PwaInstallModal.tsx';
 import { TeamsAuthModal } from './components/TeamsAuthModal.tsx';
 import { ProjectMembersModal } from './components/ProjectMembersModal.tsx';
+import { UserProfileModal } from './components/UserProfileModal.tsx';
+import { CreateTeamModal } from './components/CreateTeamModal.tsx';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -181,6 +185,25 @@ export const App: React.FC = () => {
     return SEED_USERS;
   });
 
+  const [teams, setTeams] = useState<Team[]>(() => {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      try {
+        return JSON.parse(raw).teams ?? SEED_TEAMS;
+      } catch {
+        return SEED_TEAMS;
+      }
+    }
+    return SEED_TEAMS;
+  });
+
+  const [activeTeamId, setActiveTeamId] = useState<string>(() => {
+    return SEED_TEAMS[0].id;
+  });
+
+  const [isUserProfileOpen, setIsUserProfileOpen] = useState<boolean>(false);
+  const [isCreateTeamOpen, setIsCreateTeamOpen] = useState<boolean>(false);
+
   const [currentUser, setCurrentUser] = useState<UserProfile>(() => {
     const saved = localStorage.getItem(AUTH_STORAGE_KEY);
     if (saved) {
@@ -289,6 +312,9 @@ export const App: React.FC = () => {
           if (Array.isArray(remote.revisionLogs))
             setRevisionLogs(remote.revisionLogs);
           if (Array.isArray(remote.templates)) setTemplates(remote.templates);
+          if (Array.isArray(remote.teams) && remote.teams.length > 0) {
+            setTeams(remote.teams);
+          }
           if (Array.isArray(remote.users) && remote.users.length > 0) {
             const validEmails = new Set(
               SEED_USERS.map((u) => u.email.toLowerCase())
@@ -320,6 +346,7 @@ export const App: React.FC = () => {
       revisionLogs,
       mcpLogs,
       templates,
+      teams,
       users,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(statePayload));
@@ -349,6 +376,7 @@ export const App: React.FC = () => {
     revisionLogs,
     mcpLogs,
     templates,
+    teams,
     users,
   ]);
 
@@ -381,8 +409,20 @@ export const App: React.FC = () => {
     }
   };
 
+  const activeTeam = useMemo(() => {
+    return teams.find((t) => t.id === activeTeamId) ?? teams[0];
+  }, [teams, activeTeamId]);
+
+  const teamProjects = useMemo(() => {
+    if (!activeTeam) return projects;
+    return projects.filter((p) => !p.team_id || p.team_id === activeTeam.id);
+  }, [projects, activeTeam]);
+
   const activeProject =
-    projects.find((p) => p.id === activeProjectId) ?? projects[0];
+    teamProjects.find((p) => p.id === activeProjectId) ??
+    projects.find((p) => p.id === activeProjectId) ??
+    teamProjects[0] ??
+    projects[0];
   const projectMilestones = milestones
     .filter((m) => m.project_id === activeProject.id)
     .sort((a, b) => a.order_index - b.order_index);
@@ -560,6 +600,85 @@ export const App: React.FC = () => {
     localStorage.removeItem(AUTH_STORAGE_KEY);
     setShowLandingPage(true);
     showToast('Đã đăng xuất tài khoản.');
+  };
+
+  const handleSelectTeam = (teamId: string) => {
+    setActiveTeamId(teamId);
+    const targetTeam = teams.find((t) => t.id === teamId);
+    const projs = projects.filter((p) => !p.team_id || p.team_id === teamId);
+    if (projs.length > 0 && !projs.some((p) => p.id === activeProjectId)) {
+      setActiveProjectId(projs[0].id);
+    }
+    showToast(`Đã chuyển sang ${targetTeam?.name || 'Team'}`);
+  };
+
+  const handleCreateTeam = (newTeam: Team) => {
+    setTeams((prev) => [...prev, newTeam]);
+    setActiveTeamId(newTeam.id);
+    showToast(`Đã tạo team mới: ${newTeam.name} (${newTeam.code}).`);
+  };
+
+  const handleUpdateMemberRole = async (
+    userId: string,
+    newRole: UserProfile['role']
+  ) => {
+    const targetUser = users.find((u) => u.id === userId);
+    setUsers((prev) =>
+      prev.map((u) => (u.id === userId ? { ...u, role: newRole } : u))
+    );
+    if (currentUser.id === userId) {
+      const updated = { ...currentUser, role: newRole };
+      setCurrentUser(updated);
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updated));
+    }
+    if (targetUser) {
+      try {
+        const apiBase = getApiBaseUrl();
+        await fetch(`${apiBase}/api/users/profile`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: targetUser.email, role: newRole }),
+        });
+      } catch {
+        // Fallback local update
+      }
+      showToast(
+        `Đã cập nhật Position của ${targetUser.full_name} thành ${newRole}.`
+      );
+    }
+  };
+
+  const handleSaveProfile = async (
+    updatedUser: UserProfile,
+    newPassword?: string
+  ) => {
+    setCurrentUser(updatedUser);
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedUser));
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.email.toLowerCase() === updatedUser.email.toLowerCase()
+          ? updatedUser
+          : u
+      )
+    );
+    try {
+      const apiBase = getApiBaseUrl();
+      await fetch(`${apiBase}/api/users/profile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: updatedUser.email,
+          fullName: updatedUser.full_name,
+          avatarInitials: updatedUser.avatar_initials,
+          avatarUrl: updatedUser.avatar_url,
+          role: updatedUser.role,
+          newPassword,
+        }),
+      });
+    } catch {
+      // Local profile updated
+    }
+    showToast('Đã cập nhật hồ sơ cá nhân thành công.');
   };
 
   const handleUpdateProjectMembers = (
@@ -1251,6 +1370,10 @@ export const App: React.FC = () => {
             projects={projects}
             activeProjectId={activeProject.id}
             onSelectProject={setActiveProjectId}
+            teams={teams}
+            activeTeamId={activeTeamId}
+            onSelectTeam={handleSelectTeam}
+            onOpenCreateTeam={() => setIsCreateTeamOpen(true)}
             workspaceOpen={workspaceOpen}
             onToggleWorkspace={() => setWorkspaceOpen((v) => !v)}
             teamsOpen={teamsOpen}
@@ -1265,6 +1388,7 @@ export const App: React.FC = () => {
               setActiveProjectId(projId);
               setIsEditProjectModalOpen(true);
             }}
+            onOpenUserProfile={() => setIsUserProfileOpen(true)}
             onOpenAuthModal={() => setIsAuthModalOpen(true)}
             onSignOut={handleSignOut}
             onResetDemo={handleResetDemo}
@@ -1363,15 +1487,15 @@ export const App: React.FC = () => {
                   tasks={tasks}
                   currentUser={currentUser}
                   activeProject={activeProject}
-                  onSelectUserAsCurrent={(u) => {
-                    handleAuthenticatedUser(u);
-                  }}
+                  activeTeam={activeTeam}
                   onFilterByMember={(userId) => {
                     setFilterState((prev) => ({ ...prev, assigneeId: userId }));
                     setActiveSection('projects');
                   }}
+                  onUpdateMemberRole={handleUpdateMemberRole}
                   onOpenMembersModal={() => setIsMembersModalOpen(true)}
                   onOpenAuthModal={() => setIsAuthModalOpen(true)}
+                  onOpenUserProfile={() => setIsUserProfileOpen(true)}
                 />
               )}
 
@@ -1567,6 +1691,23 @@ export const App: React.FC = () => {
         }
         onClose={() => setIsAuthModalOpen(false)}
         onAuthenticated={handleAuthenticatedUser}
+      />
+
+      {/* Edit Profile & Password Modal */}
+      <UserProfileModal
+        isOpen={isUserProfileOpen}
+        currentUser={currentUser}
+        onClose={() => setIsUserProfileOpen(false)}
+        onSave={handleSaveProfile}
+      />
+
+      {/* Create Team Modal (Admin) */}
+      <CreateTeamModal
+        isOpen={isCreateTeamOpen}
+        users={users}
+        currentUser={currentUser}
+        onClose={() => setIsCreateTeamOpen(false)}
+        onCreateTeam={handleCreateTeam}
       />
 
       {/* PWA Desktop Installation Modal */}

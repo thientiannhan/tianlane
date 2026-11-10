@@ -124,6 +124,10 @@ CREATE TABLE IF NOT EXISTS baselines_and_docs (
 CREATE INDEX IF NOT EXISTS idx_baselines_docs_project ON baselines_and_docs(project_id, record_type);
 
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS members_json JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS team_id VARCHAR(64);
+ALTER TABLE users_directory ADD COLUMN IF NOT EXISTS custom_password TEXT;
+ALTER TABLE users_directory ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+ALTER TABLE users_directory ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE;
 
 -- 7. workspace_state_store (Real-time Multi-User Collaboration & Invite Sync on Neon)
 CREATE TABLE IF NOT EXISTS workspace_state_store (

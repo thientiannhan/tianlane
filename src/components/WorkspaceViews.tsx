@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import {
   getUserProjectRole,
+  isUserAdmin,
+  isUserTeamPM,
   type BaselineRevisionEntry,
   type McpExecutionLog,
   type McpToolName,
@@ -16,6 +18,7 @@ import {
   type ProjectTask,
   type ProjectTemplate,
   type TaskPriority,
+  type Team,
   type UserProfile,
 } from '../types.ts';
 import { diffDaysISO } from '../engine/scheduleEngine.ts';
@@ -663,56 +666,107 @@ interface TeamViewProps {
   tasks: ProjectTask[];
   currentUser: UserProfile;
   activeProject?: Project;
-  onSelectUserAsCurrent: (user: UserProfile) => void;
+  activeTeam?: Team;
   onFilterByMember: (userId: string) => void;
+  onUpdateMemberRole?: (
+    userId: string,
+    newRole: UserProfile['role']
+  ) => Promise<void> | void;
   onOpenMembersModal?: () => void;
   onOpenAuthModal?: () => void;
+  onOpenUserProfile?: () => void;
 }
+
+const POSITION_CHOICES: UserProfile['role'][] = [
+  'Product Owner',
+  'Tech Lead',
+  'Senior Dev',
+  'UI/UX Designer',
+  'QA Engineer',
+];
 
 export const TeamView: React.FC<TeamViewProps> = ({
   users,
   tasks,
   currentUser,
   activeProject,
+  activeTeam,
   onFilterByMember,
+  onUpdateMemberRole,
   onOpenMembersModal,
   onOpenAuthModal,
+  onOpenUserProfile,
 }) => {
+  const isAdmin = isUserAdmin(currentUser);
+  const isPm = isUserTeamPM(activeTeam, currentUser);
+  const [showAllCompanyUsers, setShowAllCompanyUsers] = useState(false);
+
+  // If in a team, default to team members unless Admin toggles to view whole directory
+  const displayedUsers =
+    !activeTeam || showAllCompanyUsers
+      ? users
+      : users.filter((u) => activeTeam.member_ids?.includes(u.id));
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#E6E8EE] pb-4">
         <div>
-          <h1 className="text-[20px] font-medium text-[#121317]">
-            Logtechub Directory &amp; Project Access
-          </h1>
-          <p className="text-[13px] text-[#45474D]">
-            Danh sách 10 tài khoản chính thức (@logtechub.com) &amp; phân quyền theo từng Project
+          <div className="flex items-center gap-2">
+            <h1 className="text-[20px] font-semibold text-[#121317]">
+              {activeTeam
+                ? `${activeTeam.icon || '🏢'} ${activeTeam.name} · Phân quyền & Vị trí`
+                : 'Logtechub Directory & Project Access'}
+            </h1>
+            {isPm && (
+              <span className="px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-[#EEF3FB] text-[#0A4595] border border-[#B7CDF5]">
+                {isAdmin ? 'Admin' : 'Team PM'}
+              </span>
+            )}
+          </div>
+          <p className="text-[13px] text-[#45474D] mt-0.5">
+            {isPm
+              ? 'PM có quyền phân bổ Position (chức danh) cho từng thành viên trong team của mình.'
+              : 'Danh sách thành viên và phân quyền trong team.'}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {onOpenAuthModal && (
+
+        <div className="flex items-center gap-2 flex-wrap">
+          {isAdmin && (
             <button
               type="button"
-              onClick={onOpenAuthModal}
-              className="px-3.5 py-1.5 rounded-full border border-[#E6E8EE] hover:border-[#0A4595] bg-white text-[12.5px] font-medium text-[#121317] transition-colors"
+              onClick={() => setShowAllCompanyUsers((v) => !v)}
+              className="px-3.5 py-1.5 rounded-full border border-[#E6E8EE] hover:border-[#B7BFD9] bg-white text-[12px] font-medium text-[#45474D] transition-colors"
             >
-              Đổi tài khoản đăng nhập
+              {showAllCompanyUsers
+                ? 'Chỉ hiện Team này'
+                : 'Hiện tất cả User (Admin)'}
             </button>
           )}
+
+          {onOpenUserProfile && (
+            <button
+              type="button"
+              onClick={onOpenUserProfile}
+              className="px-3.5 py-1.5 rounded-full border border-[#E6E8EE] hover:border-[#0A4595] bg-white text-[12.5px] font-medium text-[#121317] transition-colors"
+            >
+              Hồ sơ cá nhân
+            </button>
+          )}
+
           {onOpenMembersModal && activeProject && (
             <button
               type="button"
               onClick={onOpenMembersModal}
               className="px-4 py-1.5 rounded-full bg-[#0A4595] hover:bg-[#1264D4] text-white text-[12.5px] font-medium transition-colors"
             >
-              Phân quyền &amp; Link Invite ({activeProject.code})
+              Phân quyền Project ({activeProject.code})
             </button>
           )}
         </div>
       </div>
 
-      <div className="divide-y divide-[#E6E8EE] rounded-2xl border border-[#E6E8EE] bg-white">
-        {users.map((member) => {
+      <div className="divide-y divide-[#E6E8EE] rounded-2xl border border-[#E6E8EE] bg-white shadow-clean-xs">
+        {displayedUsers.map((member) => {
           const memberTasks = tasks.filter((t) => t.assignee_id === member.id);
           const doneCount = memberTasks.filter(
             (t) => t.kanban_status === 'done'
@@ -721,31 +775,43 @@ export const TeamView: React.FC<TeamViewProps> = ({
           const projRole = activeProject
             ? getUserProjectRole(activeProject, member)
             : 'viewer';
+          const isTeamLead = activeTeam?.pm_ids?.includes(member.id);
 
           return (
             <div
               key={member.id}
-              className="p-4 flex flex-wrap items-center justify-between gap-4 hover:bg-[#F7F8FA]"
+              className="p-4 flex flex-wrap items-center justify-between gap-4 hover:bg-[#F7F8FA] transition-colors"
             >
               <div className="flex items-center gap-3.5">
-                <div className="relative w-9 h-9 rounded-full bg-[#F1F3F7] border border-[#E6E8EE] flex items-center justify-center text-[12.5px] font-medium text-[#121317]">
-                  {member.avatar_initials}
+                <div className="relative w-10 h-10 rounded-full bg-[#0A4595] text-white flex items-center justify-center text-[13px] font-semibold shrink-0 overflow-hidden ring-2 ring-white">
+                  {member.avatar_url ? (
+                    <img
+                      src={member.avatar_url}
+                      alt={member.full_name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span>{member.avatar_initials}</span>
+                  )}
                   <span
-                    className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-white ${
+                    className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ring-2 ring-white ${
                       member.teams_status === 'available'
                         ? 'bg-[#188038]'
                         : 'bg-amber-500'
                     }`}
                   />
                 </div>
+
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[14px] font-medium text-[#121317]">
+                    <span className="text-[14px] font-semibold text-[#121317]">
                       {member.full_name}
                     </span>
-                    <span className="text-[12px] text-[#45474D]">
-                      · {member.role}
-                    </span>
+                    {isTeamLead && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#EEF3FB] text-[#0A4595]">
+                        PM Team
+                      </span>
+                    )}
                     {activeProject && (
                       <span
                         className={`px-2 py-0.5 rounded-full text-[10.5px] font-semibold uppercase ${
@@ -760,39 +826,57 @@ export const TeamView: React.FC<TeamViewProps> = ({
                       </span>
                     )}
                   </div>
-                  <div className="text-[12px] font-mono text-[#45474D]">
+                  <div className="text-[12px] font-mono text-[#6E717A]">
                     {member.email}
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 text-[12.5px] tabular-nums">
-                <span className="text-[#45474D]">
-                  {doneCount}/{memberTasks.length} tasks done
+              <div className="flex items-center gap-3 flex-wrap">
+                {/* PM or Admin can change member's Position right here */}
+                {isPm && onUpdateMemberRole ? (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11.5px] text-[#6E717A]">Position:</span>
+                    <select
+                      value={member.role}
+                      onChange={(e) =>
+                        onUpdateMemberRole(
+                          member.id,
+                          e.target.value as UserProfile['role']
+                        )
+                      }
+                      className="px-2.5 py-1 text-[12px] font-medium rounded-xl border border-[#E6E8EE] bg-white text-[#121317] hover:border-[#0A4595] focus:outline-none transition-colors"
+                      title="Chọn lại Position cho thành viên này"
+                    >
+                      {POSITION_CHOICES.map((pos) => (
+                        <option key={pos} value={pos}>
+                          {pos}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <span className="px-2.5 py-1 rounded-xl text-[12px] font-medium bg-[#F1F3F7] text-[#45474D]">
+                    {member.role}
+                  </span>
+                )}
+
+                <span className="text-[12px] text-[#6E717A] tabular-nums">
+                  {doneCount}/{memberTasks.length} tasks
                 </span>
 
                 <button
                   type="button"
                   onClick={() => onFilterByMember(member.id)}
-                  className="px-3 py-1 rounded-full border border-[#E6E8EE] hover:border-[#B7BFD9] text-[#121317]"
+                  className="px-3 py-1 rounded-full border border-[#E6E8EE] hover:border-[#B7BFD9] text-[12px] text-[#121317] transition-colors"
                 >
-                  View tasks
+                  Tasks
                 </button>
 
-                {isCurrent ? (
-                  <span className="px-3 py-1 rounded-full text-[12px] font-medium bg-[#EEF3FB] text-[#0A4595]">
-                    Active
+                {isCurrent && (
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#EEF3FB] text-[#0A4595]">
+                    Đang đăng nhập
                   </span>
-                ) : (
-                  onOpenAuthModal && (
-                    <button
-                      type="button"
-                      onClick={onOpenAuthModal}
-                      className="px-3 py-1 rounded-full text-[12px] font-medium border border-[#E6E8EE] text-[#45474D] hover:text-[#121317]"
-                    >
-                      Sign in
-                    </button>
-                  )
                 )}
               </div>
             </div>

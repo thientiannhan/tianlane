@@ -7,9 +7,23 @@ export interface UserProfile {
   full_name: string;
   email: string;
   avatar_initials: string;
+  avatar_url?: string;
   role: 'Product Owner' | 'Tech Lead' | 'Senior Dev' | 'UI/UX Designer' | 'QA Engineer';
   teams_status: 'available' | 'busy' | 'in_meeting';
   teams_webhook_url: string;
+  password?: string;
+  is_admin?: boolean;
+}
+
+export interface Team {
+  id: string;
+  code: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  pm_ids: string[];
+  member_ids: string[];
+  created_at?: string;
 }
 
 export interface TemplateMilestoneDef {
@@ -153,6 +167,7 @@ export interface Project {
   template_id: string;
   status: 'on_track' | 'at_risk' | 'delayed' | 'completed';
   owner_id: string;
+  team_id?: string;
   odoo_project_id: number;
   odoo_project_url: string;
   start_date: string; // YYYY-MM-DD
@@ -184,6 +199,36 @@ export function isProjectCreator(project: Project, user: UserProfile): boolean {
     (project.owner_id === 'usr-po-01' &&
       user.email.toLowerCase() === 'james.nhan@logtechub.com')
   );
+}
+
+export function isUserAdmin(user: UserProfile | null | undefined): boolean {
+  if (!user) return false;
+  return Boolean(
+    user.is_admin ||
+      user.email?.toLowerCase() === 'james.nhan@logtechub.com' ||
+      user.id === 'usr-po-01'
+  );
+}
+
+export function isUserTeamPM(
+  team: Team | undefined,
+  user: UserProfile | null | undefined
+): boolean {
+  if (!team || !user) return false;
+  if (isUserAdmin(user)) return true;
+  return (
+    team.pm_ids.includes(user.id) ||
+    (user.role === 'Product Owner' && team.member_ids.includes(user.id))
+  );
+}
+
+export function canUserAccessTeam(
+  team: Team,
+  user: UserProfile | null | undefined
+): boolean {
+  if (!user) return false;
+  if (isUserAdmin(user)) return true;
+  return team.member_ids.includes(user.id) || team.pm_ids.includes(user.id);
 }
 
 export function getUserProjectRole(
