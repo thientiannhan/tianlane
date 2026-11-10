@@ -68,12 +68,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const [activePreviewTab, setActivePreviewTab] = useState<
     'timeline' | 'templates' | 'mcp'
   >('timeline');
-  const [selectedUserId, setSelectedUserId] = useState<string>(
-    users[0]?.id ?? ''
-  );
-  const [showAccountPicker, setShowAccountPicker] = useState<boolean>(false);
 
-  const activeUser = users.find((u) => u.id === selectedUserId) ?? users[0];
+  const activeUser = users[0];
 
   return (
     <div className="min-h-dvh bg-white text-[#121317] flex flex-col selection:bg-[#0A4595] selection:text-white">
@@ -173,42 +169,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <button
                 type="button"
                 onClick={() => onSignInWithTeams(activeUser)}
-                className="inline-flex items-center gap-2.5 px-6 py-3 rounded-full bg-[#0A4595] hover:bg-[#1264D4] active:bg-[#083778] text-white text-[14.5px] font-medium transition-colors shadow-lg shadow-[#0A4595]/40"
+                className="inline-flex items-center gap-2.5 px-7 py-3 rounded-full bg-[#0A4595] hover:bg-[#1264D4] active:bg-[#083778] text-white text-[14.5px] font-medium transition-colors shadow-lg shadow-[#0A4595]/40"
               >
-                <span>Sign in with Microsoft Teams</span>
+                <span>Sign in</span>
                 <ArrowRight className="w-4 h-4" aria-hidden="true" />
               </button>
-
-              <button
-                type="button"
-                onClick={() => setShowAccountPicker((v) => !v)}
-                className="inline-flex items-center gap-2 px-5 py-3 rounded-full border border-white/20 hover:border-white/40 bg-white/10 backdrop-blur-md text-white text-[14.5px] font-medium transition-colors hover:bg-white/15"
-              >
-                <span>Account: {activeUser.full_name}</span>
-              </button>
             </div>
-
-            {showAccountPicker && (
-              <div className="mt-4 max-w-md mx-auto p-2 rounded-2xl border border-white/15 bg-[#121722]/95 backdrop-blur-md flex flex-wrap items-center justify-center gap-1.5 shadow-clean-lg">
-                {users.map((u) => (
-                  <button
-                    key={u.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedUserId(u.id);
-                      setShowAccountPicker(false);
-                    }}
-                    className={`px-3 py-1.5 rounded-full text-[12.5px] font-medium transition-colors ${
-                      u.id === activeUser.id
-                        ? 'bg-[#0A4595] text-white'
-                        : 'text-gray-300 hover:text-white hover:bg-white/10'
-                    }`}
-                  >
-                    {u.full_name} · {u.role}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
         </section>
 

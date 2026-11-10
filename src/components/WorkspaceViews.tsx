@@ -674,7 +674,6 @@ export const TeamView: React.FC<TeamViewProps> = ({
   tasks,
   currentUser,
   activeProject,
-  onSelectUserAsCurrent,
   onFilterByMember,
   onOpenMembersModal,
   onOpenAuthModal,
@@ -687,7 +686,7 @@ export const TeamView: React.FC<TeamViewProps> = ({
             Logtechub Directory &amp; Project Access
           </h1>
           <p className="text-[13px] text-[#45474D]">
-            Đồng bộ tài khoản Microsoft Teams (@logtechub.com) &amp; phân quyền theo từng Project
+            Danh sách 10 tài khoản chính thức (@logtechub.com) &amp; phân quyền theo từng Project
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -697,7 +696,7 @@ export const TeamView: React.FC<TeamViewProps> = ({
               onClick={onOpenAuthModal}
               className="px-3.5 py-1.5 rounded-full border border-[#E6E8EE] hover:border-[#0A4595] bg-white text-[12.5px] font-medium text-[#121317] transition-colors"
             >
-              Đăng nhập / Thêm TK Teams
+              Đổi tài khoản đăng nhập
             </button>
           )}
           {onOpenMembersModal && activeProject && (
@@ -780,17 +779,21 @@ export const TeamView: React.FC<TeamViewProps> = ({
                   View tasks
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => onSelectUserAsCurrent(member)}
-                  className={`px-3 py-1 rounded-full text-[12px] font-medium ${
-                    isCurrent
-                      ? 'bg-[#EEF3FB] text-[#0A4595]'
-                      : 'border border-[#E6E8EE] text-[#45474D] hover:text-[#121317]'
-                  }`}
-                >
-                  {isCurrent ? 'Active SSO' : 'Switch'}
-                </button>
+                {isCurrent ? (
+                  <span className="px-3 py-1 rounded-full text-[12px] font-medium bg-[#EEF3FB] text-[#0A4595]">
+                    Active
+                  </span>
+                ) : (
+                  onOpenAuthModal && (
+                    <button
+                      type="button"
+                      onClick={onOpenAuthModal}
+                      className="px-3 py-1 rounded-full text-[12px] font-medium border border-[#E6E8EE] text-[#45474D] hover:text-[#121317]"
+                    >
+                      Sign in
+                    </button>
+                  )
+                )}
               </div>
             </div>
           );

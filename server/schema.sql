@@ -131,3 +131,29 @@ CREATE TABLE IF NOT EXISTS workspace_state_store (
   state_json JSONB NOT NULL,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Clean up legacy fake users and seed the 10 official Logtechub accounts
+DELETE FROM users_directory WHERE id IN ('usr-tl-02', 'usr-ux-03', 'usr-dev-04', 'usr-qa-05')
+  OR email IN ('minh.quan@logtechub.com', 'khanh.vy@logtechub.com', 'hoang.nam@logtechub.com', 'thao.linh@logtechub.com');
+
+INSERT INTO users_directory (id, microsoft_entra_id, full_name, email, avatar_initials, role, teams_status, teams_webhook_url)
+VALUES
+  ('usr-po-01', 'entra-logtechub-james-nhan', 'James Nhan', 'james.nhan@logtechub.com', 'JN', 'Product Owner', 'available', 'https://outlook.office.com/webhook/logtechub-po'),
+  ('usr-azura-thuy', 'entra-logtechub-azura-thuy', 'Azura Thuy', 'azura.thuy@logtechub.com', 'AT', 'Product Owner', 'available', 'https://outlook.office.com/webhook/logtechub-po'),
+  ('usr-kenny-thuong', 'entra-logtechub-kenny-thuong', 'Kenny Thuong', 'kenny.thuong@logtechub.com', 'KT', 'Tech Lead', 'available', 'https://outlook.office.com/webhook/logtechub-dev'),
+  ('usr-brian-binh', 'entra-logtechub-brian-binh', 'Brian Binh', 'brian.binh@logtechub.com', 'BB', 'Senior Dev', 'available', 'https://outlook.office.com/webhook/logtechub-dev'),
+  ('usr-daley-thai', 'entra-logtechub-daley-thai', 'Daley Thai', 'daley.thai@logtechub.com', 'DT', 'Senior Dev', 'available', 'https://outlook.office.com/webhook/logtechub-dev'),
+  ('usr-lynne-loc', 'entra-logtechub-lynne-loc', 'Lynne Loc', 'lynne.loc@logtechub.com', 'LL', 'UI/UX Designer', 'available', 'https://outlook.office.com/webhook/logtechub-design'),
+  ('usr-jasmine-thu', 'entra-logtechub-jasmine-thu', 'Jasmine Thu', 'jasmine.thu@logtechub.com', 'JT', 'QA Engineer', 'available', 'https://outlook.office.com/webhook/logtechub-qa'),
+  ('usr-edwin-tai', 'entra-logtechub-edwin-tai', 'Edwin Tai', 'edwin.tai@logtechub.com', 'ET', 'Senior Dev', 'available', 'https://outlook.office.com/webhook/logtechub-dev'),
+  ('usr-anatolius-thuan', 'entra-logtechub-anatolius-thuan', 'Anatolius Thuan', 'anatolius.thuan@logtechub.com', 'AT', 'Tech Lead', 'available', 'https://outlook.office.com/webhook/logtechub-dev'),
+  ('usr-alex-phuong', 'entra-logtechub-alex-phuong', 'Alex Phuong', 'alex.phuong@logtechub.com', 'AP', 'QA Engineer', 'available', 'https://outlook.office.com/webhook/logtechub-qa')
+ON CONFLICT (email) DO UPDATE SET
+  id = EXCLUDED.id,
+  microsoft_entra_id = EXCLUDED.microsoft_entra_id,
+  full_name = EXCLUDED.full_name,
+  avatar_initials = EXCLUDED.avatar_initials,
+  role = EXCLUDED.role,
+  teams_status = 'available';
+
+DELETE FROM workspace_state_store WHERE id = 'default';

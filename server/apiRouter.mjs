@@ -260,63 +260,156 @@ export async function handleApiAndHealthRequest(req, res) {
     return true;
   }
 
-  // 2b. LOGTECHUB MICROSOFT TEAMS / ENTRA ID AUTHENTICATION & DIRECTORY SYNC
-  if (pathname === '/api/auth/teams' && req.method === 'POST') {
+  // 2b. LOGTECHUB ACCOUNT & MICROSOFT TEAMS AUTHENTICATION
+  if (
+    (pathname === '/api/auth/teams' || pathname === '/api/auth/login') &&
+    req.method === 'POST'
+  ) {
     try {
       const body = await readJsonBody(req);
-      const rawEmail = String(body.email || '').trim().toLowerCase();
-      if (!rawEmail || !rawEmail.includes('@')) {
+      const rawIdentifier = String(body.email || body.identifier || '')
+        .trim()
+        .toLowerCase();
+      const rawPassword = String(body.password || '').trim();
+
+      if (!rawIdentifier) {
         sendJson(
           res,
           400,
-          { error: 'Vui lòng nhập email tài khoản Microsoft Teams hợp lệ.' },
+          { error: 'Vui lòng nhập email hoặc username tài khoản Logtechub.' },
           reqOrigin
         );
         return true;
       }
 
-      const isLogtechub = rawEmail.endsWith('@logtechub.com');
-      if (!isLogtechub && !body.allowInvitedExternal) {
+      const normalizedEmail = rawIdentifier.includes('@')
+        ? rawIdentifier
+        : `${rawIdentifier}@logtechub.com`;
+      const username = normalizedEmail.split('@')[0] || '';
+
+      const LOGTECHUB_ACCOUNTS = {
+        'james.nhan@logtechub.com': {
+          id: 'usr-po-01',
+          microsoft_entra_id: 'entra-logtechub-james-nhan',
+          full_name: 'James Nhan',
+          avatar_initials: 'JN',
+          role: 'Product Owner',
+          teams_webhook_url: 'https://outlook.office.com/webhook/logtechub-po',
+        },
+        'azura.thuy@logtechub.com': {
+          id: 'usr-azura-thuy',
+          microsoft_entra_id: 'entra-logtechub-azura-thuy',
+          full_name: 'Azura Thuy',
+          avatar_initials: 'AT',
+          role: 'Product Owner',
+          teams_webhook_url: 'https://outlook.office.com/webhook/logtechub-po',
+        },
+        'kenny.thuong@logtechub.com': {
+          id: 'usr-kenny-thuong',
+          microsoft_entra_id: 'entra-logtechub-kenny-thuong',
+          full_name: 'Kenny Thuong',
+          avatar_initials: 'KT',
+          role: 'Tech Lead',
+          teams_webhook_url: 'https://outlook.office.com/webhook/logtechub-dev',
+        },
+        'brian.binh@logtechub.com': {
+          id: 'usr-brian-binh',
+          microsoft_entra_id: 'entra-logtechub-brian-binh',
+          full_name: 'Brian Binh',
+          avatar_initials: 'BB',
+          role: 'Senior Dev',
+          teams_webhook_url: 'https://outlook.office.com/webhook/logtechub-dev',
+        },
+        'daley.thai@logtechub.com': {
+          id: 'usr-daley-thai',
+          microsoft_entra_id: 'entra-logtechub-daley-thai',
+          full_name: 'Daley Thai',
+          avatar_initials: 'DT',
+          role: 'Senior Dev',
+          teams_webhook_url: 'https://outlook.office.com/webhook/logtechub-dev',
+        },
+        'lynne.loc@logtechub.com': {
+          id: 'usr-lynne-loc',
+          microsoft_entra_id: 'entra-logtechub-lynne-loc',
+          full_name: 'Lynne Loc',
+          avatar_initials: 'LL',
+          role: 'UI/UX Designer',
+          teams_webhook_url: 'https://outlook.office.com/webhook/logtechub-design',
+        },
+        'jasmine.thu@logtechub.com': {
+          id: 'usr-jasmine-thu',
+          microsoft_entra_id: 'entra-logtechub-jasmine-thu',
+          full_name: 'Jasmine Thu',
+          avatar_initials: 'JT',
+          role: 'QA Engineer',
+          teams_webhook_url: 'https://outlook.office.com/webhook/logtechub-qa',
+        },
+        'edwin.tai@logtechub.com': {
+          id: 'usr-edwin-tai',
+          microsoft_entra_id: 'entra-logtechub-edwin-tai',
+          full_name: 'Edwin Tai',
+          avatar_initials: 'ET',
+          role: 'Senior Dev',
+          teams_webhook_url: 'https://outlook.office.com/webhook/logtechub-dev',
+        },
+        'anatolius.thuan@logtechub.com': {
+          id: 'usr-anatolius-thuan',
+          microsoft_entra_id: 'entra-logtechub-anatolius-thuan',
+          full_name: 'Anatolius Thuan',
+          avatar_initials: 'AT',
+          role: 'Tech Lead',
+          teams_webhook_url: 'https://outlook.office.com/webhook/logtechub-dev',
+        },
+        'alex.phuong@logtechub.com': {
+          id: 'usr-alex-phuong',
+          microsoft_entra_id: 'entra-logtechub-alex-phuong',
+          full_name: 'Alex Phuong',
+          avatar_initials: 'AP',
+          role: 'QA Engineer',
+          teams_webhook_url: 'https://outlook.office.com/webhook/logtechub-qa',
+        },
+      };
+
+      const matchedAccount = LOGTECHUB_ACCOUNTS[normalizedEmail];
+      if (!matchedAccount) {
         sendJson(
           res,
           403,
           {
             error:
-              'Chỉ cho phép đăng nhập bằng tài khoản Microsoft Teams của Logtechub (@logtechub.com) hoặc tài khoản được mời vào Project.',
+              'Tài khoản không tồn tại trong danh sách thành viên Logtechub (@logtechub.com).',
           },
           reqOrigin
         );
         return true;
       }
 
-      const localPart = rawEmail.split('@')[0] || 'member';
-      const derivedName = localPart
-        .split(/[._-]+/)
-        .filter(Boolean)
-        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-        .join(' ');
-      const fullName = String(body.fullName || '').trim() || derivedName || 'Logtechub Member';
-      const initials = fullName
-        .split(/\s+/)
-        .filter(Boolean)
-        .slice(0, 2)
-        .map((w) => w.charAt(0).toUpperCase())
-        .join('') || 'LT';
-      const role = body.role || 'Product Owner';
-      const userId =
-        body.id || `usr-${localPart.replace(/[^a-z0-9]/g, '-')}`;
-      const entraId =
-        body.microsoftEntraId || `entra-logtechub-${localPart.replace(/[^a-z0-9]/g, '-')}`;
+      const currentYear = new Date().getFullYear();
+      const expectedCurrent = `${username}${currentYear}`;
+      const expected2026 = `${username}2026`;
+
+      if (rawPassword !== expectedCurrent && rawPassword !== expected2026) {
+        sendJson(
+          res,
+          401,
+          {
+            error:
+              'Mật khẩu không chính xác. Vui lòng nhập theo cú pháp <username> + năm hiện tại (ví dụ: james.nhan2026).',
+          },
+          reqOrigin
+        );
+        return true;
+      }
 
       const userProfile = {
-        id: userId,
-        microsoft_entra_id: entraId,
-        full_name: fullName,
-        email: rawEmail,
-        avatar_initials: initials,
-        role,
+        id: matchedAccount.id,
+        microsoft_entra_id: matchedAccount.microsoft_entra_id,
+        full_name: matchedAccount.full_name,
+        email: normalizedEmail,
+        avatar_initials: matchedAccount.avatar_initials,
+        role: matchedAccount.role,
         teams_status: 'available',
-        teams_webhook_url: 'https://outlook.office.com/webhook/logtechub-teams',
+        teams_webhook_url: matchedAccount.teams_webhook_url,
       };
 
       const pool = await getDbPool();
@@ -352,7 +445,7 @@ export async function handleApiAndHealthRequest(req, res) {
       sendJson(
         res,
         500,
-        { error: err instanceof Error ? err.message : 'Teams SSO authentication failed' },
+        { error: err instanceof Error ? err.message : 'Authentication failed' },
         reqOrigin
       );
     }

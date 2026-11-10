@@ -67,8 +67,8 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
 }
 
-const STORAGE_KEY = 'tianlane_pm_state_v4';
-const AUTH_STORAGE_KEY = 'tianlane_auth_user_v1';
+const STORAGE_KEY = 'tianlane_pm_state_v5';
+const AUTH_STORAGE_KEY = 'tianlane_auth_user_v2';
 
 export const App: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>(() => {
@@ -289,8 +289,15 @@ export const App: React.FC = () => {
           if (Array.isArray(remote.revisionLogs))
             setRevisionLogs(remote.revisionLogs);
           if (Array.isArray(remote.templates)) setTemplates(remote.templates);
-          if (Array.isArray(remote.users) && remote.users.length > 0)
-            setUsers(remote.users);
+          if (Array.isArray(remote.users) && remote.users.length > 0) {
+            const validEmails = new Set(
+              SEED_USERS.map((u) => u.email.toLowerCase())
+            );
+            const cleanedUsers = remote.users.filter((u: UserProfile) =>
+              validEmails.has(u.email?.toLowerCase())
+            );
+            setUsers(cleanedUsers.length >= 10 ? cleanedUsers : SEED_USERS);
+          }
         }
         isCloudHydratedRef.current = true;
       })
@@ -545,14 +552,14 @@ export const App: React.FC = () => {
     });
     setShowLandingPage(false);
     showToast(
-      `Đã đăng nhập Microsoft Teams: ${authedUser.full_name} (${authedUser.email}).`
+      `Đã đăng nhập: ${authedUser.full_name} (${authedUser.email}).`
     );
   };
 
   const handleSignOut = () => {
     localStorage.removeItem(AUTH_STORAGE_KEY);
     setShowLandingPage(true);
-    showToast('Đã đăng xuất phiên làm việc Microsoft Teams.');
+    showToast('Đã đăng xuất tài khoản.');
   };
 
   const handleUpdateProjectMembers = (

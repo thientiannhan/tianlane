@@ -9,7 +9,12 @@ import {
   mapOdooStageToKanban,
   validateAttachmentFileSize,
 } from './scheduleEngine.ts';
-import { SEED_PROJECTS, SEED_TEMPLATES, SEED_USERS } from '../data/seedData.ts';
+import {
+  authenticateLogtechubUser,
+  SEED_PROJECTS,
+  SEED_TEMPLATES,
+  SEED_USERS,
+} from '../data/seedData.ts';
 import {
   canUserEditProject,
   canUserManageMembers,
@@ -103,21 +108,33 @@ assert.equal(mapOdooStageToKanbanStatus('Sprint Complete'), 'done');
 assert.equal(mapOdooStageToKanbanStatus('Deployed in Production'), 'done');
 assert.equal(MCP_TOOLS_MANIFEST.length, 6, 'Should expose all 6 PO governance MCP tools');
 
-// 9. Test Project RBAC (Owner / Writer / Viewer & Creator Owner protection)
+// 9. Test Project RBAC (Owner / Writer / Viewer & Creator Owner protection) & 10 Logtechub Accounts
+assert.equal(SEED_USERS.length, 10, 'Should have exactly 10 real Logtechub accounts');
 const p0 = SEED_PROJECTS[0];
 const creatorUser = SEED_USERS[0]; // james.nhan@logtechub.com (Creator Owner)
-const writerUser = SEED_USERS[1]; // minh.quan@logtechub.com (Writer)
-const viewerUser = SEED_USERS[4]; // thao.linh@logtechub.com (Viewer)
+const secondOwner = SEED_USERS[1]; // azura.thuy@logtechub.com (Owner, non-creator)
+const writerUser = SEED_USERS[2]; // kenny.thuong@logtechub.com (Writer)
+const viewerUser = SEED_USERS[6]; // jasmine.thu@logtechub.com (Viewer)
 
 assert.equal(isProjectCreator(p0, creatorUser), true);
+assert.equal(isProjectCreator(p0, secondOwner), false);
 assert.equal(isProjectCreator(p0, writerUser), false);
 assert.equal(getUserProjectRole(p0, creatorUser), 'owner');
+assert.equal(getUserProjectRole(p0, secondOwner), 'owner');
 assert.equal(getUserProjectRole(p0, writerUser), 'writer');
 assert.equal(getUserProjectRole(p0, viewerUser), 'viewer');
 assert.equal(canUserEditProject(p0, creatorUser), true);
 assert.equal(canUserEditProject(p0, writerUser), true);
 assert.equal(canUserEditProject(p0, viewerUser), false);
 assert.equal(canUserManageMembers(p0, creatorUser), true);
+assert.equal(canUserManageMembers(p0, secondOwner), true);
 assert.equal(canUserManageMembers(p0, writerUser), false);
 
-console.log('✓ All Tianlane scheduleEngine, RBAC, R2 Presigner & Odoo MCP self-check assertions passed.');
+// 10. Test Logtechub account password rule (<username> + 2026)
+assert.equal(authenticateLogtechubUser('james.nhan@logtechub.com', 'james.nhan2026').ok, true);
+assert.equal(authenticateLogtechubUser('azura.thuy', 'azura.thuy2026').ok, true);
+assert.equal(authenticateLogtechubUser('alex.phuong@logtechub.com', 'alex.phuong2026').ok, true);
+assert.equal(authenticateLogtechubUser('james.nhan@logtechub.com', 'wrongpass').ok, false);
+assert.equal(authenticateLogtechubUser('fake.user@logtechub.com', 'fake.user2026').ok, false);
+
+console.log('✓ All Tianlane scheduleEngine, RBAC, 10 Logtechub Accounts, R2 Presigner & Odoo MCP self-check assertions passed.');
