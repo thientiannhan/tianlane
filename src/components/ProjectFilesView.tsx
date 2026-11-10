@@ -163,7 +163,14 @@ export const ProjectFilesView: React.FC<ProjectFilesViewProps> = ({
     )}`;
 
     try {
-      const presignRes = await fetch('/api/storage/presign', {
+      const apiBase =
+        import.meta.env.VITE_API_URL ||
+        (typeof window !== 'undefined' &&
+        (window.location.hostname.includes('workers.dev') ||
+          window.location.hostname.includes('pages.dev'))
+          ? 'https://tianlane.onrender.com'
+          : '');
+      const presignRes = await fetch(`${apiBase}/api/storage/presign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
