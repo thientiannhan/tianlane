@@ -1,0 +1,25 @@
+{
+  "name": "Tianlane — Project Governance Platform",
+  "short_name": "Tianlane",
+  "description": "Project Governance & Delivery Management platform for Product Owners with Timeline, Kanban & Autonomous Agent Progress Sync",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#FFFFFF",
+  "theme_color": "#0A4595",
+  "icons": [
+    {
+      "src": "/favicon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/tianlan-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
