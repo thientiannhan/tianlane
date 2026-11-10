@@ -1,9 +1,16 @@
 import React, { useState } from 'react';
 import {
   Bell,
+  Check,
   Copy,
+  KeyRound,
   Plus,
+  RotateCcw,
+  Search,
   Send,
+  Shield,
+  ShieldCheck,
+  UserCheck,
 } from 'lucide-react';
 import {
   getUserProjectRole,
@@ -1271,6 +1278,292 @@ export const ProjectStandardsView: React.FC<ProjectStandardsViewProps> = ({
           </div>
         </div>
       )}
+    </div>
+  );
+};
+
+/* ============================================================================
+ * 5. ACCOUNT MANAGEMENT VIEW (Admin Directory, Role Assignment & Password Reset)
+ * ============================================================================ */
+interface AccountManagementViewProps {
+  users: UserProfile[];
+  teams: Team[];
+  currentUser: UserProfile;
+  onResetPassword: (user: UserProfile) => Promise<void> | void;
+  onUpdateUserRole: (
+    userId: string,
+    newRole: UserProfile['role']
+  ) => Promise<void> | void;
+  onSelectUserLogin?: (user: UserProfile) => void;
+  onOpenUserProfile?: () => void;
+}
+
+export const AccountManagementView: React.FC<AccountManagementViewProps> = ({
+  users,
+  teams,
+  currentUser,
+  onResetPassword,
+  onUpdateUserRole,
+  onSelectUserLogin,
+  onOpenUserProfile,
+}) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [roleFilter, setRoleFilter] = useState<'all' | UserProfile['role']>('all');
+  const [resettingEmail, setResettingEmail] = useState<string | null>(null);
+  const [resetSuccessNotice, setResetSuccessNotice] = useState<string | null>(null);
+
+  const currentYear = new Date().getFullYear();
+
+  const filteredUsers = users.filter((u) => {
+    const q = searchTerm.trim().toLowerCase();
+    if (
+      q &&
+      !u.full_name.toLowerCase().includes(q) &&
+      !u.email.toLowerCase().includes(q)
+    ) {
+      return false;
+    }
+    if (roleFilter !== 'all' && u.role !== roleFilter) {
+      return false;
+    }
+    return true;
+  });
+
+  const handleTriggerReset = async (u: UserProfile) => {
+    const username = u.email.split('@')[0];
+    const defaultPassword = `${username}${currentYear}`;
+    const confirmed = confirm(
+      `Khôi phục mật khẩu tài khoản ${u.full_name} (${u.email})?\n\nMật khẩu sẽ được đưa về dạng mặc định: ${defaultPassword}`
+    );
+    if (!confirmed) return;
+
+    setResettingEmail(u.email);
+    try {
+      await onResetPassword(u);
+      setResetSuccessNotice(
+        `Đã reset mật khẩu của ${u.full_name} về mặc định: ${defaultPassword}`
+      );
+      setTimeout(() => {
+        setResetSuccessNotice(null);
+      }, 6000);
+    } finally {
+      setResettingEmail(null);
+    }
+  };
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#E6E8EE] pb-4">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-[#EEF3FB] text-[#0A4595] flex items-center justify-center">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <h1 className="text-[20px] font-semibold text-[#121317]">
+              Quản lý Tài khoản &amp; Khôi phục Mật khẩu
+            </h1>
+            <span className="px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-amber-100 text-amber-800 uppercase">
+              Admin Control
+            </span>
+          </div>
+          <p className="text-[13px] text-[#45474D] mt-1">
+            Danh sách 10 tài khoản chính thức (@logtechub.com), phân bổ Position và khôi phục mật khẩu về định dạng chuẩn (<span className="font-mono text-[#0A4595]">&lt;username&gt;{currentYear}</span>).
+          </p>
+        </div>
+
+        {onOpenUserProfile && (
+          <button
+            type="button"
+            onClick={onOpenUserProfile}
+            className="px-4 py-2 rounded-full border border-[#0A4595] text-[#0A4595] hover:bg-[#EEF3FB] text-[12.5px] font-medium transition-colors"
+          >
+            Hồ sơ của tôi
+          </button>
+        )}
+      </div>
+
+      {/* Success Notification */}
+      {resetSuccessNotice && (
+        <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[13px] flex items-center justify-between animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span className="font-medium">{resetSuccessNotice}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setResetSuccessNotice(null)}
+            className="text-emerald-700 hover:text-emerald-900 text-[12px] underline ml-4"
+          >
+            Đóng
+          </button>
+        </div>
+      )}
+
+      {/* Filter and Search Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl bg-[#F7F8FA] border border-[#E6E8EE]">
+        <div className="relative flex-1 min-w-[220px]">
+          <Search className="w-4 h-4 text-[#6E717A] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Tìm theo tên hoặc email @logtechub.com..."
+            className="w-full pl-9 pr-3.5 py-1.5 rounded-xl border border-[#E6E8EE] bg-white text-[13px] text-[#121317] placeholder:text-[#6E717A] focus:outline-none focus:border-[#0A4595]"
+          />
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-[12px] text-[#6E717A]">Lọc chức danh:</span>
+          <select
+            value={roleFilter}
+            onChange={(e) =>
+              setRoleFilter(e.target.value as 'all' | UserProfile['role'])
+            }
+            className="px-3 py-1.5 rounded-xl border border-[#E6E8EE] bg-white text-[12.5px] text-[#121317] focus:outline-none focus:border-[#0A4595]"
+          >
+            <option value="all">Tất cả chức danh (10)</option>
+            {POSITION_CHOICES.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Directory Accounts List */}
+      <div className="divide-y divide-[#E6E8EE] rounded-3xl border border-[#E6E8EE] bg-white shadow-clean-xs overflow-hidden">
+        {filteredUsers.map((u) => {
+          const username = u.email.split('@')[0];
+          const isCurrent = currentUser.id === u.id;
+          const isUserAdm = isUserAdmin(u);
+          const userTeams = teams.filter(
+            (t) => t.member_ids?.includes(u.id) || t.pm_ids?.includes(u.id)
+          );
+
+          return (
+            <div
+              key={u.id}
+              className={`p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-colors ${
+                isCurrent ? 'bg-[#EEF3FB]/30' : 'hover:bg-[#F7F8FA]'
+              }`}
+            >
+              {/* User Identity */}
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="relative w-10 h-10 rounded-full bg-[#0A4595] text-white flex items-center justify-center font-semibold text-[13px] shrink-0 overflow-hidden">
+                  {u.avatar_url ? (
+                    <img
+                      src={u.avatar_url}
+                      alt={u.full_name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span>{u.avatar_initials}</span>
+                  )}
+                  <span
+                    className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ring-2 ring-white ${
+                      u.teams_status === 'available'
+                        ? 'bg-[#188038]'
+                        : 'bg-amber-500'
+                    }`}
+                  />
+                </div>
+
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[14.5px] font-semibold text-[#121317] truncate">
+                      {u.full_name}
+                    </span>
+                    {isUserAdm && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-100 text-amber-800">
+                        Admin
+                      </span>
+                    )}
+                    {isCurrent && (
+                      <span className="px-2 py-0.2 rounded-full text-[10px] font-semibold bg-[#EEF3FB] text-[#0A4595]">
+                        Đang đăng nhập
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[12px] font-mono text-[#6E717A]">
+                    {u.email}
+                  </div>
+
+                  {/* Teams tag list */}
+                  <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                    {userTeams.length > 0 ? (
+                      userTeams.map((tm) => (
+                        <span
+                          key={tm.id}
+                          className="px-2 py-0.2 rounded-full text-[10px] font-medium bg-[#F1F3F7] text-[#45474D]"
+                        >
+                          {tm.icon || '🏢'} {tm.name}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-[11px] text-[#6E717A] italic">
+                        Chưa gán team
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions & Role selection */}
+              <div className="flex items-center gap-2.5 flex-wrap sm:justify-end">
+                {/* Position Selector */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11.5px] text-[#6E717A]">Role:</span>
+                  <select
+                    value={u.role}
+                    onChange={(e) =>
+                      onUpdateUserRole(
+                        u.id,
+                        e.target.value as UserProfile['role']
+                      )
+                    }
+                    className="px-2.5 py-1 text-[12px] font-medium rounded-xl border border-[#E6E8EE] bg-white text-[#121317] hover:border-[#0A4595] focus:outline-none transition-colors"
+                  >
+                    {POSITION_CHOICES.map((pos) => (
+                      <option key={pos} value={pos}>
+                        {pos}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Reset Password Button */}
+                <button
+                  type="button"
+                  disabled={resettingEmail === u.email}
+                  onClick={() => handleTriggerReset(u)}
+                  title={`Khôi phục mật khẩu tài khoản về mặc định (${username}${currentYear})`}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-amber-300 bg-amber-50/80 hover:bg-amber-100 text-amber-900 text-[12px] font-medium transition-colors shadow-clean-xs"
+                >
+                  <KeyRound className="w-3.5 h-3.5 text-amber-700" />
+                  <span>
+                    {resettingEmail === u.email
+                      ? 'Đang reset...'
+                      : 'Reset Password'}
+                  </span>
+                </button>
+
+                {/* Quick login switch */}
+                {onSelectUserLogin && !isCurrent && (
+                  <button
+                    type="button"
+                    onClick={() => onSelectUserLogin(u)}
+                    className="px-3 py-1.5 rounded-full border border-[#E6E8EE] hover:border-[#0A4595] bg-white text-[#45474D] hover:text-[#0A4595] text-[12px] font-medium transition-colors"
+                  >
+                    Đăng nhập
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 };

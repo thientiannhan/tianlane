@@ -518,7 +518,13 @@ export async function handleApiAndHealthRequest(req, res) {
           updates.push(`role = $${idx++}`);
           values.push(body.role.trim());
         }
-        if (body.newPassword) {
+        if (body.isAdmin !== undefined) {
+          updates.push(`is_admin = $${idx++}`);
+          values.push(Boolean(body.isAdmin));
+        }
+        if (body.resetPassword) {
+          updates.push(`custom_password = NULL`);
+        } else if (body.newPassword) {
           updates.push(`custom_password = $${idx++}`);
           values.push(body.newPassword.trim());
         }

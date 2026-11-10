@@ -53,6 +53,7 @@ import {
   type ProjectFilterState,
 } from './components/ProjectHeaderControls.tsx';
 import {
+  AccountManagementView,
   AgentView,
   InboxView,
   ProjectStandardsView,
@@ -65,6 +66,7 @@ import { TeamsAuthModal } from './components/TeamsAuthModal.tsx';
 import { ProjectMembersModal } from './components/ProjectMembersModal.tsx';
 import { UserProfileModal } from './components/UserProfileModal.tsx';
 import { CreateTeamModal } from './components/CreateTeamModal.tsx';
+import { TaskModal } from './components/TaskModal.tsx';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -252,6 +254,9 @@ export const App: React.FC = () => {
   const [selectedTask, setSelectedTask] = useState<ProjectTask | null>(null);
   const [selectedMilestone, setSelectedMilestone] =
     useState<ProjectMilestone | null>(null);
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState<boolean>(false);
+  const [taskModalMilestoneId, setTaskModalMilestoneId] = useState<string | undefined>(undefined);
+  const [editingTask, setEditingTask] = useState<ProjectTask | null>(null);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState<boolean>(false);
   const [isEditProjectModalOpen, setIsEditProjectModalOpen] =
     useState<boolean>(false);
@@ -754,6 +759,76 @@ export const App: React.FC = () => {
     setTasks(nextTasks);
     syncMilestoneProgress(nextTasks, updated.milestone_id);
     setSelectedTask(updated);
+  };
+
+  const handleOpenCreateTask = (defaultMsId?: string) => {
+    if (!requireWriteAccess()) return;
+    setEditingTask(null);
+    setTaskModalMilestoneId(defaultMsId);
+    setIsTaskModalOpen(true);
+  };
+
+  const handleOpenEditTask = (task: ProjectTask, defaultMsId?: string) => {
+    if (!requireWriteAccess()) return;
+    setEditingTask(task);
+    setTaskModalMilestoneId(defaultMsId ?? task.milestone_id);
+    setIsTaskModalOpen(true);
+  };
+
+  const handleSaveTask = (savedTask: ProjectTask) => {
+    if (!requireWriteAccess()) return;
+    const exists = tasks.some((t) => t.id === savedTask.id);
+    const nextTasks = exists
+      ? tasks.map((t) => (t.id === savedTask.id ? savedTask : t))
+      : [...tasks, savedTask];
+
+    setTasks(nextTasks);
+    syncMilestoneProgress(nextTasks, savedTask.milestone_id);
+    if (selectedTask?.id === savedTask.id) {
+      setSelectedTask(savedTask);
+    }
+    showToast(
+      exists
+        ? `Đã cập nhật Task ${savedTask.code}: ${savedTask.title}.`
+        : `Đã tạo Task mới ${savedTask.code}: ${savedTask.title}.`
+    );
+  };
+
+  const handleDeleteTask = (taskId: string) => {
+    if (!requireWriteAccess()) return;
+    const target = tasks.find((t) => t.id === taskId);
+    const nextTasks = tasks.filter((t) => t.id !== taskId);
+    setTasks(nextTasks);
+    if (target) {
+      syncMilestoneProgress(nextTasks, target.milestone_id);
+    }
+    if (selectedTask?.id === taskId) {
+      setSelectedTask(null);
+    }
+    showToast(`Đã xóa task ${target?.code ?? ''}.`);
+  };
+
+  const handleResetUserPassword = async (targetUser: UserProfile) => {
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.email.toLowerCase() === targetUser.email.toLowerCase()
+          ? { ...u, password: undefined }
+          : u
+      )
+    );
+    try {
+      const apiBase = getApiBaseUrl();
+      await fetch(`${apiBase}/api/users/profile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: targetUser.email,
+          resetPassword: true,
+        }),
+      });
+    } catch {
+      // Local state updated
+    }
   };
 
   const handleShiftMilestoneEnd = (milestoneId: string, deltaDays: number) => {
@@ -1421,6 +1496,7 @@ export const App: React.FC = () => {
               onInstallApp={handleInstallPwaClick}
               onOpenEditProject={() => setIsEditProjectModalOpen(true)}
               onOpenMembersModal={() => setIsMembersModalOpen(true)}
+              onOpenCreateTask={() => handleOpenCreateTask()}
             />
 
             {toastMessage && (
@@ -1499,6 +1575,18 @@ export const App: React.FC = () => {
                 />
               )}
 
+              {activeSection === 'accounts' && (
+                <AccountManagementView
+                  users={users}
+                  teams={teams}
+                  currentUser={currentUser}
+                  onResetPassword={handleResetUserPassword}
+                  onUpdateUserRole={handleUpdateMemberRole}
+                  onSelectUserLogin={handleAuthenticatedUser}
+                  onOpenUserProfile={() => setIsUserProfileOpen(true)}
+                />
+              )}
+
               {activeSection === 'files' && (
                 <ProjectFilesView
                   projects={projects}
@@ -1568,6 +1656,7 @@ export const App: React.FC = () => {
                       onUpdateMilestoneIcon={handleUpdateMilestoneIcon}
                       onUpdateTask={handleUpdateTask}
                       onCommitBaseline={handleCommitBaseline}
+                      onAddTaskToMilestone={(msId) => handleOpenCreateTask(msId)}
                     />
                   )}
 
@@ -1628,6 +1717,9 @@ export const App: React.FC = () => {
         }}
         onUpdateTask={handleUpdateTask}
         onToggleMilestoneClosed={handleToggleMilestoneClosed}
+        onOpenTaskModal={(t, msId) =>
+          t ? handleOpenEditTask(t, msId) : handleOpenCreateTask(msId)
+        }
         onAddDocument={(doc) => {
           if (!requireWriteAccess()) return;
           const newDoc: ProjectDocument = {
@@ -1673,6 +1765,24 @@ export const App: React.FC = () => {
         onClose={() => setIsMembersModalOpen(false)}
         onUpdateProjectMembers={handleUpdateProjectMembers}
         onRegisterNewDirectoryUser={handleRegisterNewDirectoryUser}
+      />
+
+      {/* Create / Edit Project Task Modal */}
+      <TaskModal
+        isOpen={isTaskModalOpen}
+        task={editingTask}
+        defaultMilestoneId={taskModalMilestoneId}
+        project={activeProject}
+        milestones={projectMilestones}
+        users={users}
+        existingTasks={projectTasks}
+        odooBaseUrl={odooBaseUrl}
+        onClose={() => {
+          setIsTaskModalOpen(false);
+          setEditingTask(null);
+        }}
+        onSave={handleSaveTask}
+        onDelete={handleDeleteTask}
       />
 
       {/* Microsoft Teams (@logtechub.com) SSO Modal */}

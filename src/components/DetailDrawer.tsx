@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ExternalLink, Upload, X } from 'lucide-react';
+import { CheckCircle2, ExternalLink, Plus, Upload, X } from 'lucide-react';
 import type {
   KanbanStatus,
   ProjectDocument,
@@ -27,6 +27,7 @@ interface DetailDrawerProps {
   onToggleMilestoneClosed: (milestoneId: string) => void;
   onAddDocument: (doc: Omit<ProjectDocument, 'id' | 'uploaded_at'>) => void;
   currentUser: UserProfile;
+  onOpenTaskModal?: (task?: ProjectTask | null, defaultMilestoneId?: string) => void;
 }
 
 export const DetailDrawer: React.FC<DetailDrawerProps> = ({
@@ -42,6 +43,7 @@ export const DetailDrawer: React.FC<DetailDrawerProps> = ({
   onToggleMilestoneClosed,
   onAddDocument,
   currentUser,
+  onOpenTaskModal,
 }) => {
   const [newChecklistLabel, setNewChecklistLabel] = useState('');
   const [odooIdInput, setOdooIdInput] = useState(
@@ -365,6 +367,121 @@ export const DetailDrawer: React.FC<DetailDrawerProps> = ({
                 </form>
               </div>
             </>
+          )}
+
+          {/* Milestone Tasks Hierarchy: Project > Milestone > Task */}
+          {activeMilestone && (
+            <div className="space-y-3 pt-2 border-t border-[#E6E8EE]">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-[13px] font-semibold text-[#121317]">
+                    Danh sách Tasks ({milestoneTasks.length})
+                  </span>
+                  <div className="text-[11.5px] text-[#6E717A]">
+                    Công việc trực thuộc Milestone {activeMilestone.code}
+                  </div>
+                </div>
+
+                {onOpenTaskModal && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenTaskModal(null, activeMilestone.id)}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#0A4595] hover:bg-[#083778] text-white text-[12px] font-medium transition-colors shadow-clean-xs"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Thêm Task</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="divide-y divide-[#E6E8EE] rounded-2xl border border-[#E6E8EE] bg-white overflow-hidden">
+                {milestoneTasks.length === 0 ? (
+                  <div className="p-4 text-center">
+                    <p className="text-[12.5px] text-[#6E717A]">
+                      Chưa có công việc nào trong Milestone này.
+                    </p>
+                    {onOpenTaskModal && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenTaskModal(null, activeMilestone.id)}
+                        className="mt-2 inline-flex items-center gap-1 text-[12px] font-medium text-[#0A4595] hover:underline"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Thêm Task đầu tiên</span>
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  milestoneTasks.map((t) => {
+                    const assignee = users.find((u) => u.id === t.assignee_id);
+                    return (
+                      <div
+                        key={t.id}
+                        className="p-3 hover:bg-[#F7F8FA] flex items-center justify-between gap-3 transition-colors cursor-pointer group"
+                        onClick={() => {
+                          if (onOpenTaskModal) {
+                            onOpenTaskModal(t, activeMilestone.id);
+                          }
+                        }}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-mono text-[11px] text-[#0A4595] font-semibold">
+                              {t.code}
+                            </span>
+                            <span className="text-[13px] font-medium text-[#121317] truncate group-hover:text-[#0A4595] transition-colors">
+                              {t.title}
+                            </span>
+                            {t.is_gate_blocker && (
+                              <span className="px-1.5 py-0.2 rounded text-[9.5px] font-bold uppercase bg-rose-50 text-rose-700 border border-rose-200">
+                                Blocker
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2 mt-1 text-[11.5px] text-[#6E717A]">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10.5px] font-medium ${
+                                t.kanban_status === 'done'
+                                  ? 'bg-emerald-50 text-emerald-700'
+                                  : t.kanban_status === 'in_progress'
+                                  ? 'bg-blue-50 text-blue-700'
+                                  : t.kanban_status === 'review'
+                                  ? 'bg-purple-50 text-purple-700'
+                                  : 'bg-slate-100 text-slate-700'
+                              }`}
+                            >
+                              {t.kanban_status}
+                            </span>
+                            {assignee && (
+                              <span>· {assignee.full_name}</span>
+                            )}
+                            {t.odoo_task_id && (
+                              <span className="font-mono text-[#0A4595]">
+                                · Odoo #{t.odoo_task_id}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onOpenTaskModal) {
+                              onOpenTaskModal(t, activeMilestone.id);
+                            }
+                          }}
+                          className="px-2.5 py-1 rounded-full text-[11.5px] font-medium border border-[#E6E8EE] hover:border-[#0A4595] hover:text-[#0A4595] bg-white transition-colors shrink-0"
+                        >
+                          Sửa
+                        </button>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
           )}
 
           {activeMilestone && (

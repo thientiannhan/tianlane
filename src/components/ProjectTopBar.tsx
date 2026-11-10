@@ -5,6 +5,7 @@ import {
   ExternalLink,
   Eye,
   Pencil,
+  Plus,
   RefreshCw,
   Share2,
 } from 'lucide-react';
@@ -38,6 +39,7 @@ interface ProjectTopBarProps {
   onInstallApp: () => void;
   onOpenEditProject: () => void;
   onOpenMembersModal: () => void;
+  onOpenCreateTask?: () => void;
 }
 
 export const ProjectTopBar: React.FC<ProjectTopBarProps> = ({
@@ -55,6 +57,7 @@ export const ProjectTopBar: React.FC<ProjectTopBarProps> = ({
   onInstallApp,
   onOpenEditProject,
   onOpenMembersModal,
+  onOpenCreateTask,
 }) => {
   const userRole = getUserProjectRole(activeProject, currentUser);
   const userIsCreator = isProjectCreator(activeProject, currentUser);
@@ -146,6 +149,18 @@ export const ProjectTopBar: React.FC<ProjectTopBarProps> = ({
 
         {/* Right Header Controls */}
         <div className="flex items-center gap-2">
+          {activeSection === 'projects' && canEdit && onOpenCreateTask && (
+            <button
+              type="button"
+              onClick={onOpenCreateTask}
+              title="Tạo Task mới trong Milestone của Project"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#0A4595] hover:bg-[#083778] text-white text-[12.5px] font-medium transition-colors shadow-clean-xs"
+            >
+              <Plus className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>+ Thêm Task</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={onOpenMembersModal}

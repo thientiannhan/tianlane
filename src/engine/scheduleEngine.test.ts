@@ -146,12 +146,20 @@ if (!failCheck.ok) {
   assert.equal(failCheck.error.includes('james.nhan2026'), false, 'Never leak password hint to users');
 }
 
-// Test custom password support
+// Test custom password support & Reset Password back to default formula
 const userWithCustomPass = { ...creatorUser, password: 'MyNewSecretPassword2026!' };
 assert.equal(
   authenticateLogtechubUser('james.nhan', 'MyNewSecretPassword2026!', [userWithCustomPass]).ok,
   true,
   'Custom password updated in profile should be recognized'
+);
+
+// Reset password: removing custom password reverts back to username + current year
+const userAfterReset = { ...userWithCustomPass, password: undefined };
+assert.equal(
+  authenticateLogtechubUser('james.nhan@logtechub.com', 'james.nhan2026', [userAfterReset]).ok,
+  true,
+  'Reset password should revert authentication back to <username>+year'
 );
 
 // 11. Test Multi-Team Access Control & Admin Privileges

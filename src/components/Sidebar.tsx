@@ -5,6 +5,7 @@ import {
   ChevronDown,
   FolderOpen,
   Inbox,
+  KeyRound,
   LogOut,
   Pencil,
   Plus,
@@ -12,6 +13,7 @@ import {
   Search,
   Send,
   Settings,
+  ShieldCheck,
   SquarePen,
   User,
   Users,
@@ -32,7 +34,8 @@ export type SidebarSection =
   | 'projects'
   | 'files'
   | 'team'
-  | 'settings';
+  | 'settings'
+  | 'accounts';
 
 interface SidebarProps {
   activeSection: SidebarSection;
@@ -222,6 +225,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <User className="w-3.5 h-3.5 text-[#0A4595]" />
                   <span>Chỉnh sửa hồ sơ &amp; Đổi mật khẩu</span>
                 </button>
+
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowBrandMenu(false);
+                      onSelectSection('accounts');
+                    }}
+                    className="w-full px-2.5 py-1.5 rounded-lg text-left text-[12.5px] font-medium text-[#121317] hover:bg-[#F1F3F7] flex items-center gap-2 transition-colors"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-[#0A4595]" />
+                    <span>Quản lý 10 Account &amp; Reset Pass</span>
+                  </button>
+                )}
 
                 {onOpenAuthModal && (
                   <button
@@ -585,6 +602,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
         </div>
+
+        {/* Account Directory & Password Management (Admin) */}
+        {isAdmin && (
+          <div className="pt-2 border-t border-[#E6E8EE]">
+            <button
+              type="button"
+              onClick={() => onSelectSection('accounts')}
+              className={`w-full px-2.5 py-1.5 rounded-lg flex items-center justify-between text-[13.5px] transition-colors ${
+                activeSection === 'accounts'
+                  ? 'bg-[#ECEEF3] text-[#121317] font-medium'
+                  : 'text-[#45474D] hover:bg-[#ECEEF3]/60 hover:text-[#121317]'
+              }`}
+            >
+              <span className="flex items-center gap-2.5">
+                <ShieldCheck className="w-4 h-4 text-[#0A4595]" aria-hidden="true" />
+                <span>Quản lý Account</span>
+              </span>
+              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 uppercase">
+                Admin
+              </span>
+            </button>
+          </div>
+        )}
 
         {/* Settings (Standards) */}
         <div className="pt-2 border-t border-[#E6E8EE]">

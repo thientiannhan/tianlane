@@ -48,6 +48,7 @@ interface TimelineViewProps {
   onUpdateMilestoneIcon: (milestoneId: string, icon: string) => void;
   onUpdateTask: (task: ProjectTask) => void;
   onCommitBaseline: () => void;
+  onAddTaskToMilestone?: (milestoneId: string) => void;
 }
 
 // Wide multi-month scrollable timeline window: Aug 1, 2026 -> Apr 30, 2027 (273 days)
@@ -221,6 +222,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
   onUpdateMilestoneIcon,
   onUpdateTask,
   onCommitBaseline,
+  onAddTaskToMilestone,
 }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [collapsedMilestones, setCollapsedMilestones] = useState<
@@ -853,33 +855,67 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
                             </div>
                           </div>
 
-                          {/* Quick Shift Milestone Dates */}
-                          {!ms.is_ongoing_phase && (
-                            <div className="flex items-center gap-1 shrink-0">
+                          {/* Quick Shift Milestone Dates & Add Task */}
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {onAddTaskToMilestone && (
                               <button
                                 type="button"
-                                onClick={() => onShiftMilestoneEnd(ms.id, -2)}
-                                className="px-2 py-0.5 rounded-md bg-white border border-[#E6E8EE] hover:border-[#B7BFD9] text-[11px] font-mono text-[#45474D]"
-                                title="Pull milestone end date -2 days"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onAddTaskToMilestone(ms.id);
+                                }}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white border border-[#B7CDF5] hover:bg-[#EEF3FB] text-[11.5px] font-medium text-[#0A4595] shadow-clean-xs transition-colors shrink-0"
+                                title={`Thêm Task mới vào Milestone ${ms.code}`}
                               >
-                                -2d
+                                <Plus className="w-3 h-3" />
+                                <span>+ Task</span>
                               </button>
-                              <button
-                                type="button"
-                                onClick={() => onShiftMilestoneEnd(ms.id, 2)}
-                                className="px-2 py-0.5 rounded-md bg-white border border-[#E6E8EE] hover:border-[#B7BFD9] text-[11px] font-mono text-[#45474D]"
-                                title="Extend milestone end date +2 days"
-                              >
-                                +2d
-                              </button>
-                            </div>
-                          )}
+                            )}
+
+                            {!ms.is_ongoing_phase && (
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => onShiftMilestoneEnd(ms.id, -2)}
+                                  className="px-2 py-0.5 rounded-md bg-white border border-[#E6E8EE] hover:border-[#B7BFD9] text-[11px] font-mono text-[#45474D]"
+                                  title="Pull milestone end date -2 days"
+                                >
+                                  -2d
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => onShiftMilestoneEnd(ms.id, 2)}
+                                  className="px-2 py-0.5 rounded-md bg-white border border-[#E6E8EE] hover:border-[#B7BFD9] text-[11px] font-mono text-[#45474D]"
+                                  title="Extend milestone end date +2 days"
+                                >
+                                  +2d
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
 
                         {/* Tasks Track Inside Milestone Swimlane */}
                         {!isCollapsed && (
                           <div className="space-y-2.5 pt-3 mt-2.5 border-t border-[#E6E8EE]/90">
-                            {taskCoords.map(({ task, leftPx, widthPx }) => {
+                            {taskCoords.length === 0 ? (
+                              <div className="py-3 px-4 rounded-xl bg-white/70 border border-dashed border-[#B7CDF5] flex items-center justify-between gap-3">
+                                <span className="text-[12.5px] text-[#6E717A]">
+                                  Milestone này chưa có Task nào.
+                                </span>
+                                {onAddTaskToMilestone && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onAddTaskToMilestone(ms.id)}
+                                    className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-[#0A4595] text-white hover:bg-[#083778] text-[12px] font-medium transition-colors shadow-clean-xs"
+                                  >
+                                    <Plus className="w-3.5 h-3.5" />
+                                    <span>+ Thêm Task ngay</span>
+                                  </button>
+                                )}
+                              </div>
+                            ) : (
+                              taskCoords.map(({ task, leftPx, widthPx }) => {
                               // Relative offset inside the milestone swimlane so task aligns with global timeline ruler
                               const relativeLeftPx = Math.max(
                                 0,
@@ -1097,7 +1133,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
                                   </div>
                                 </div>
                               );
-                            })}
+                            }))}
                           </div>
                         )}
                       </div>
