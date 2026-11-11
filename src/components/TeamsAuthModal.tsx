@@ -22,7 +22,7 @@ interface TeamsAuthModalProps {
   currentUser: UserProfile | null;
   pendingInvite?: PendingInviteInfo | null;
   onClose: () => void;
-  onAuthenticated: (user: UserProfile) => void;
+  onAuthenticated: (user: UserProfile, rememberMe: boolean) => void;
 }
 
 // Hidden while Microsoft Teams OAuth is not yet connected
@@ -37,6 +37,7 @@ export const TeamsAuthModal: React.FC<TeamsAuthModalProps> = ({
 }) => {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -73,7 +74,7 @@ export const TeamsAuthModal: React.FC<TeamsAuthModalProps> = ({
       if (res.ok) {
         const data = await res.json();
         if (data?.user) {
-          onAuthenticated(data.user as UserProfile);
+          onAuthenticated(data.user as UserProfile, rememberMe);
           onClose();
           return;
         }
@@ -91,7 +92,7 @@ export const TeamsAuthModal: React.FC<TeamsAuthModalProps> = ({
       setIsSubmitting(false);
     }
 
-    onAuthenticated(localCheck.user);
+    onAuthenticated(localCheck.user, rememberMe);
     onClose();
   };
 
@@ -238,6 +239,18 @@ export const TeamsAuthModal: React.FC<TeamsAuthModalProps> = ({
                   <Eye className="w-4 h-4" />
                 )}
               </button>
+            </div>
+
+            <div className="flex items-center justify-between text-[13px] pt-1 pb-1">
+              <label className="inline-flex items-center gap-2 cursor-pointer select-none text-[#45474D] hover:text-[#121317]">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="w-4 h-4 rounded border-[#D3D6DF] text-[#0A4595] focus:ring-[#0A4595] accent-[#0A4595] cursor-pointer"
+                />
+                <span>Ghi nhớ đăng nhập (Remember me)</span>
+              </label>
             </div>
 
             <button

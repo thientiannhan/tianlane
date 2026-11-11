@@ -195,11 +195,15 @@ export function getApiBaseUrl(): string {
   return '';
 }
 
-export function isProjectCreator(project: Project, user: UserProfile): boolean {
+export function isProjectCreator(
+  project: Project | null | undefined,
+  user: UserProfile | null | undefined
+): boolean {
+  if (!project || !user) return false;
   return (
     project.owner_id === user.id ||
     (project.owner_id === 'usr-po-01' &&
-      user.email.toLowerCase() === 'james.nhan@logtechub.com')
+      user.email?.toLowerCase() === 'james.nhan@logtechub.com')
   );
 }
 
@@ -239,29 +243,35 @@ export function canUserAccessTeam(
 }
 
 export function getUserProjectRole(
-  project: Project,
-  user: UserProfile
+  project: Project | null | undefined,
+  user: UserProfile | null | undefined
 ): ProjectMemberRole {
+  if (!project || !user) return 'viewer';
   if (isProjectCreator(project, user)) return 'owner';
   const list = project.members || [];
   const hit = list.find(
     (m) =>
       m.user_id === user.id ||
-      m.email.toLowerCase() === user.email.toLowerCase()
+      m.email?.toLowerCase() === user.email?.toLowerCase()
   );
   if (hit) return hit.role;
   return 'viewer';
 }
 
-export function canUserEditProject(project: Project, user: UserProfile): boolean {
+export function canUserEditProject(
+  project: Project | null | undefined,
+  user: UserProfile | null | undefined
+): boolean {
+  if (!project || !user) return false;
   const role = getUserProjectRole(project, user);
   return role === 'owner' || role === 'writer';
 }
 
 export function canUserManageMembers(
-  project: Project,
-  user: UserProfile
+  project: Project | null | undefined,
+  user: UserProfile | null | undefined
 ): boolean {
+  if (!project || !user) return false;
   return getUserProjectRole(project, user) === 'owner';
 }
 

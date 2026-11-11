@@ -347,4 +347,15 @@ for (const task of plTasks) {
   assert.ok(task.tags.includes('AI-created'), `Task ${task.code} must include 'AI-created' tag`);
 }
 
+// 16. Verify null-safety for unauthenticated visitor permission checks
+assert.equal(isProjectCreator(plProject, null), false, 'Null user cannot be project creator');
+assert.equal(canUserEditProject(plProject, null), false, 'Null user cannot edit project');
+assert.equal(getUserProjectRole(plProject, null), 'viewer', 'Null user role defaults to viewer');
+assert.equal(canUserAccessTeam(SEED_TEAMS[0], null), false, 'Null user cannot access team');
+
+// 17. Verify deep link parsing for project=63
+const route63 = parseRoute('/project=63', '', '', SEED_PROJECTS, SEED_TEAMS);
+assert.equal(route63.section, 'projects');
+assert.equal(route63.rawProjectKey, '63');
+
 console.log('✓ All Tianlane scheduleEngine, RBAC, Multi-Team Access, R2 Presigner, Route Engine & Odoo AI Tags assertions passed.');

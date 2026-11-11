@@ -13,7 +13,7 @@ import { AntigravityHeroField } from './AntigravityHeroField.tsx';
 
 interface LandingPageProps {
   users: UserProfile[];
-  onSignInWithTeams: (user: UserProfile) => void;
+  onSignInWithTeams: () => void;
   onInstallApp: () => void;
 }
 
@@ -69,8 +69,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     'timeline' | 'templates' | 'mcp'
   >('timeline');
 
-  const activeUser = users[0];
-
   return (
     <div className="min-h-dvh bg-white text-[#121317] flex flex-col selection:bg-[#0A4595] selection:text-white">
       {/* Dark Cosmic Google Antigravity Navbar */}
@@ -122,7 +120,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
             <button
               type="button"
-              onClick={() => onSignInWithTeams(activeUser)}
+              onClick={onSignInWithTeams}
               className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-[#0A4595] hover:bg-[#1264D4] text-white text-[13px] font-medium transition-colors shadow-lg shadow-[#0A4595]/30"
             >
               <span>Sign in</span>
@@ -168,7 +166,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
               <button
                 type="button"
-                onClick={() => onSignInWithTeams(activeUser)}
+                onClick={onSignInWithTeams}
                 className="inline-flex items-center gap-2.5 px-7 py-3 rounded-full bg-[#0A4595] hover:bg-[#1264D4] active:bg-[#083778] text-white text-[14.5px] font-medium transition-colors shadow-lg shadow-[#0A4595]/40"
               >
                 <span>Sign in</span>
@@ -242,7 +240,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
               <button
                 type="button"
-                onClick={() => onSignInWithTeams(activeUser)}
+                onClick={onSignInWithTeams}
                 className="inline-flex items-center gap-1 text-[12.5px] font-medium text-[#0A4595] hover:underline"
               >
                 <span>Open workspace</span>
@@ -472,7 +470,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => onSignInWithTeams(activeUser)}
+              onClick={onSignInWithTeams}
               className="text-[#0A4595] font-medium hover:underline"
             >
               Enter Workspace →

@@ -10,7 +10,7 @@ interface TemplateModalProps {
   teams?: Team[];
   activeTeamId?: string;
   users?: UserProfile[];
-  currentUser?: UserProfile;
+  currentUser?: UserProfile | null;
   referenceTodayISO?: string;
   onInstantiate: (payload: {
     template: ProjectTemplate;

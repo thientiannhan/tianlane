@@ -78,7 +78,48 @@ interface BeforeInstallPromptEvent extends Event {
 
 const STORAGE_KEY = 'tianlane_pm_state_v5';
 const AUTH_STORAGE_KEY = 'tianlane_auth_user_v2';
+const REDIRECT_STORAGE_KEY = 'tianlane_redirect_after_login_v1';
 const DELETED_TEAMS_KEY = 'tianlane_deleted_team_ids_v1';
+
+const getSavedAuthUser = (): UserProfile | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw =
+      localStorage.getItem(AUTH_STORAGE_KEY) ||
+      sessionStorage.getItem(AUTH_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object' && parsed.id && parsed.email) {
+      return parsed as UserProfile;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+};
+
+const persistAuthUser = (user: UserProfile, rememberMe?: boolean) => {
+  const serialized = JSON.stringify(user);
+  if (rememberMe === true) {
+    localStorage.setItem(AUTH_STORAGE_KEY, serialized);
+    sessionStorage.removeItem(AUTH_STORAGE_KEY);
+  } else if (rememberMe === false) {
+    sessionStorage.setItem(AUTH_STORAGE_KEY, serialized);
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+  } else {
+    // Preserve current storage location
+    if (sessionStorage.getItem(AUTH_STORAGE_KEY)) {
+      sessionStorage.setItem(AUTH_STORAGE_KEY, serialized);
+    } else {
+      localStorage.setItem(AUTH_STORAGE_KEY, serialized);
+    }
+  }
+};
+
+const clearAuthUser = () => {
+  localStorage.removeItem(AUTH_STORAGE_KEY);
+  sessionStorage.removeItem(AUTH_STORAGE_KEY);
+};
 
 const getDeletedTeamIds = (): string[] => {
   try {
@@ -311,20 +352,12 @@ export const App: React.FC = () => {
   const [isUserProfileOpen, setIsUserProfileOpen] = useState<boolean>(false);
   const [isCreateTeamOpen, setIsCreateTeamOpen] = useState<boolean>(false);
 
-  const [currentUser, setCurrentUser] = useState<UserProfile>(() => {
-    const saved = localStorage.getItem(AUTH_STORAGE_KEY);
-    if (saved) {
-      try {
-        return JSON.parse(saved) as UserProfile;
-      } catch {
-        return SEED_USERS[0];
-      }
-    }
-    return SEED_USERS[0];
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
+    return getSavedAuthUser();
   });
 
   const [showLandingPage, setShowLandingPage] = useState<boolean>(() => {
-    return !localStorage.getItem(AUTH_STORAGE_KEY);
+    return !getSavedAuthUser();
   });
 
   const [activeSection, setActiveSection] = useState<SidebarSection>(
@@ -397,12 +430,30 @@ export const App: React.FC = () => {
   const isCloudHydratedRef = useRef<boolean>(false);
   const skipNextCloudSaveRef = useRef<boolean>(false);
 
-  // Open Microsoft Teams SSO modal automatically if arriving via invite link or project deep link while signed out
+  // Redirect unauthenticated visitor from any deep link (e.g. /project=63) to clean homepage
   useEffect(() => {
-    if ((pendingInvite || initialRoute?.rawProjectKey) && showLandingPage) {
+    if (typeof window === 'undefined') return;
+    const authed = getSavedAuthUser();
+    if (!authed) {
+      const fullPath =
+        window.location.pathname +
+        window.location.search +
+        window.location.hash;
+      if (fullPath && fullPath !== '/') {
+        try {
+          sessionStorage.setItem(REDIRECT_STORAGE_KEY, fullPath);
+        } catch {}
+        window.history.replaceState({}, '', '/');
+      }
+    }
+  }, []);
+
+  // Open Microsoft Teams SSO modal automatically if arriving via invite link while signed out
+  useEffect(() => {
+    if (pendingInvite && showLandingPage) {
       setIsAuthModalOpen(true);
     }
-  }, [pendingInvite, initialRoute, showLandingPage]);
+  }, [pendingInvite, showLandingPage]);
 
   // Select task from initial URL if specified (?task=...)
   useEffect(() => {
@@ -798,7 +849,7 @@ export const App: React.FC = () => {
 
   // Auto-join project when arriving via Invite Link (?project=...&invite=...&role=...)
   useEffect(() => {
-    if (!pendingInvite || showLandingPage) return;
+    if (!pendingInvite || showLandingPage || !currentUser) return;
     const targetProj = projects.find(
       (p) =>
         p.id === pendingInvite.projectId ||
@@ -872,9 +923,12 @@ export const App: React.FC = () => {
     );
   }, [pendingInvite, showLandingPage, projects, currentUser]);
 
-  const handleAuthenticatedUser = (authedUser: UserProfile) => {
+  const handleAuthenticatedUser = (
+    authedUser: UserProfile,
+    rememberMe: boolean = true
+  ) => {
     setCurrentUser(authedUser);
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authedUser));
+    persistAuthUser(authedUser, rememberMe);
     setUsers((prev) => {
       const exists = prev.some(
         (u) => u.email.toLowerCase() === authedUser.email.toLowerCase()
@@ -888,6 +942,42 @@ export const App: React.FC = () => {
       }
       return [...prev, authedUser];
     });
+
+    // Check if user previously tried to navigate to a deep link before logging in
+    try {
+      const savedRedirect = sessionStorage.getItem(REDIRECT_STORAGE_KEY);
+      if (savedRedirect) {
+        sessionStorage.removeItem(REDIRECT_STORAGE_KEY);
+        const [pathAndSearch, hash] = savedRedirect.split('#');
+        const [path, query] = pathAndSearch.split('?');
+        const parsed = parseRoute(
+          path || '/',
+          query ? `?${query}` : '',
+          hash ? `#${hash}` : '',
+          projects,
+          teams
+        );
+        if (parsed.projectId) setActiveProjectId(parsed.projectId);
+        if (parsed.teamId) {
+          setActiveTeamId(parsed.teamId);
+          localStorage.setItem('tianlane_active_team', parsed.teamId);
+        }
+        if (parsed.section) setActiveSection(parsed.section);
+        if (parsed.viewMode) {
+          setDisplayState((prev) => ({ ...prev, viewMode: parsed.viewMode! }));
+        }
+        if (parsed.taskId) {
+          const found = tasks.find(
+            (t) =>
+              t.id === parsed.taskId ||
+              String(t.odoo_task_id) === parsed.taskId ||
+              t.code.toLowerCase() === parsed.taskId!.toLowerCase()
+          );
+          if (found) setSelectedTask(found);
+        }
+      }
+    } catch {}
+
     setShowLandingPage(false);
     showToast(
       `Signed in as ${authedUser.full_name} (${authedUser.email}).`
@@ -895,8 +985,13 @@ export const App: React.FC = () => {
   };
 
   const handleSignOut = () => {
-    localStorage.removeItem(AUTH_STORAGE_KEY);
+    clearAuthUser();
+    sessionStorage.removeItem(REDIRECT_STORAGE_KEY);
+    setCurrentUser(null);
     setShowLandingPage(true);
+    if (typeof window !== 'undefined') {
+      window.history.replaceState({}, '', '/');
+    }
     showToast('Signed out successfully.');
   };
 
@@ -972,10 +1067,10 @@ export const App: React.FC = () => {
     setUsers((prev) =>
       prev.map((u) => (u.id === userId ? { ...u, role: newRole } : u))
     );
-    if (currentUser.id === userId) {
+    if (currentUser?.id === userId) {
       const updated = { ...currentUser, role: newRole };
       setCurrentUser(updated);
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updated));
+      persistAuthUser(updated);
     }
     if (targetUser) {
       try {
@@ -999,7 +1094,7 @@ export const App: React.FC = () => {
     newPassword?: string
   ) => {
     setCurrentUser(updatedUser);
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedUser));
+    persistAuthUser(updatedUser);
     setUsers((prev) =>
       prev.map((u) =>
         u.email.toLowerCase() === updatedUser.email.toLowerCase()
@@ -1075,7 +1170,7 @@ export const App: React.FC = () => {
           avatar_initials: targetUser.avatar_initials,
           role: newRole,
           added_at: new Date().toISOString().slice(0, 10),
-          added_by: currentUser.full_name,
+          added_by: currentUser?.full_name || 'James Nhan',
         },
       ];
     }
@@ -1270,7 +1365,7 @@ export const App: React.FC = () => {
           deltaDays > 0
             ? 'Extended milestone target date on Timeline'
             : 'Pulled in milestone target date on Timeline',
-        author_name: currentUser.full_name,
+        author_name: currentUser?.full_name || 'James Nhan',
         created_at: new Date().toISOString().slice(0, 16).replace('T', ' '),
       };
       setRevisionLogs((prev) => [revEntry, ...prev]);
@@ -1355,7 +1450,7 @@ export const App: React.FC = () => {
       priority: 'medium',
       is_completed: status === 'done',
       is_gate_blocker: false,
-      assignee_id: currentUser.id,
+      assignee_id: currentUser?.id || users[0].id,
       planned_start: startIso,
       due_date: endIso,
       actual_start: startIso,
@@ -1397,7 +1492,7 @@ export const App: React.FC = () => {
       startDateISO: payload.startDateISO,
       odooProjectId: payload.odooProjectId,
       odooBaseUrl,
-      ownerId: currentUser.id,
+      ownerId: currentUser?.id || 'usr-po-01',
       users,
       teamId: assignedTeamId,
     });
@@ -1855,7 +1950,7 @@ export const App: React.FC = () => {
 
   return (
     <>
-      {showLandingPage ? (
+      {showLandingPage || !currentUser ? (
         <LandingPage
           users={users}
           onSignInWithTeams={() => {

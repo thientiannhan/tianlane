@@ -26,7 +26,7 @@ interface DetailDrawerProps {
   onUpdateTask: (updated: ProjectTask) => void;
   onToggleMilestoneClosed: (milestoneId: string) => void;
   onAddDocument: (doc: Omit<ProjectDocument, 'id' | 'uploaded_at'>) => void;
-  currentUser: UserProfile;
+  currentUser: UserProfile | null;
   onOpenTaskModal?: (task?: ProjectTask | null, defaultMilestoneId?: string) => void;
 }
 
@@ -133,7 +133,7 @@ export const DetailDrawer: React.FC<DetailDrawerProps> = ({
       file_size_bytes: file.size,
       version_tag: docVersionInput || 'v1.0',
       doc_type: 'PRD',
-      uploaded_by: currentUser.full_name,
+      uploaded_by: currentUser?.full_name || 'James Nhan',
     });
     e.target.value = '';
   };
@@ -153,7 +153,7 @@ export const DetailDrawer: React.FC<DetailDrawerProps> = ({
       file_size_bytes: 2_400_000,
       version_tag: docVersionInput || 'v1.0',
       doc_type: 'External Link',
-      uploaded_by: currentUser.full_name,
+      uploaded_by: currentUser?.full_name || 'James Nhan',
     });
     setDocNameInput('');
   };
