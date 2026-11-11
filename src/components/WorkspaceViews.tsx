@@ -11,6 +11,7 @@ import {
   Send,
   Shield,
   ShieldCheck,
+  Trash2,
   UserCheck,
   UserPlus,
   X,
@@ -688,6 +689,7 @@ interface TeamViewProps {
     newRole: ProjectMemberRole
   ) => void;
   onOpenCreateTeam?: () => void;
+  onDeleteTeam?: (teamId: string) => void;
   onOpenMembersModal?: () => void;
   onOpenAuthModal?: () => void;
   onOpenUserProfile?: () => void;
@@ -712,6 +714,7 @@ export const TeamView: React.FC<TeamViewProps> = ({
   onUpdateMemberRole,
   onUpdateProjectMemberRole,
   onOpenCreateTeam,
+  onDeleteTeam,
   onOpenMembersModal,
   onOpenAuthModal,
   onOpenUserProfile,
@@ -758,6 +761,18 @@ export const TeamView: React.FC<TeamViewProps> = ({
             >
               <Plus className="w-3.5 h-3.5" />
               <span>+ Create Team</span>
+            </button>
+          )}
+
+          {isAdmin && onDeleteTeam && activeTeam && (
+            <button
+              type="button"
+              onClick={() => onDeleteTeam(activeTeam.id)}
+              title={`Delete team ${activeTeam.name}`}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-red-200 hover:border-red-400 bg-red-50 hover:bg-red-100 text-red-600 text-[12px] font-medium transition-colors cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Delete Team</span>
             </button>
           )}
 

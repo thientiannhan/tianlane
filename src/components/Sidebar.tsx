@@ -15,6 +15,7 @@ import {
   Settings,
   ShieldCheck,
   SquarePen,
+  Trash2,
   User,
   Users,
 } from 'lucide-react';
@@ -47,6 +48,7 @@ interface SidebarProps {
   activeTeamId: string;
   onSelectTeam: (teamId: string) => void;
   onOpenCreateTeam?: () => void;
+  onDeleteTeam?: (teamId: string) => void;
   workspaceOpen: boolean;
   onToggleWorkspace: () => void;
   teamsOpen: boolean;
@@ -74,6 +76,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activeTeamId,
   onSelectTeam,
   onOpenCreateTeam,
+  onDeleteTeam,
   workspaceOpen,
   onToggleWorkspace,
   teamsOpen,
@@ -294,20 +297,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   const isSelected = team.id === activeTeam?.id;
                   const isPm = team.pm_ids?.includes(currentUser.id);
                   return (
-                    <button
+                    <div
                       key={team.id}
-                      type="button"
-                      onClick={() => {
-                        onSelectTeam(team.id);
-                        setShowTeamMenu(false);
-                      }}
-                      className={`w-full px-2.5 py-2 text-left rounded-xl flex items-center justify-between text-[12.5px] transition-colors ${
+                      className={`w-full px-2.5 py-1.5 rounded-xl flex items-center justify-between text-[12.5px] transition-colors group ${
                         isSelected
                           ? 'bg-[#EEF3FB] text-[#0A4595] font-semibold'
                           : 'text-[#121317] hover:bg-[#F7F8FA]'
                       }`}
                     >
-                      <div className="flex items-center gap-2 truncate">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onSelectTeam(team.id);
+                          setShowTeamMenu(false);
+                        }}
+                        className="flex items-center gap-2 truncate text-left flex-1"
+                      >
                         <span className="text-[14px]">{team.icon || '🏢'}</span>
                         <div className="truncate">
                           <div className="truncate leading-snug">{team.name}</div>
@@ -320,11 +325,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             )}
                           </div>
                         </div>
+                      </button>
+                      <div className="flex items-center gap-1 shrink-0 ml-1">
+                        {isSelected && (
+                          <Check className="w-3.5 h-3.5 text-[#0A4595]" />
+                        )}
+                        {isAdmin && onDeleteTeam && teams.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowTeamMenu(false);
+                              onDeleteTeam(team.id);
+                            }}
+                            title={`Delete team ${team.name}`}
+                            className="p-1 rounded text-[#6E717A] hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
-                      {isSelected && (
-                        <Check className="w-3.5 h-3.5 text-[#0A4595] shrink-0" />
-                      )}
-                    </button>
+                    </div>
                   );
                 })}
               </div>
@@ -571,18 +592,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 const isPm = team.pm_ids?.includes(currentUser.id);
                 return (
                   <div key={team.id} className="space-y-0.5">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onSelectTeam(team.id);
-                      }}
-                      className={`w-full px-2.5 py-1.5 rounded-lg flex items-center justify-between text-[13px] transition-colors group cursor-pointer ${
+                    <div
+                      className={`w-full px-2.5 py-1.5 rounded-lg flex items-center justify-between text-[13px] transition-colors group ${
                         isActive
                           ? 'bg-[#ECEEF3] text-[#121317] font-semibold'
                           : 'text-[#45474D] hover:bg-[#ECEEF3]/60 hover:text-[#121317]'
                       }`}
                     >
-                      <span className="flex items-center gap-2 truncate">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onSelectTeam(team.id);
+                        }}
+                        className="flex items-center gap-2 truncate text-left flex-1 cursor-pointer"
+                      >
                         <span className="text-[13px] shrink-0">
                           {team.icon || '🏢'}
                         </span>
@@ -592,11 +615,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             PM
                           </span>
                         )}
-                      </span>
-                      <span className="text-[11.5px] font-mono text-[#6E717A] tabular-nums shrink-0 ml-1">
-                        {team.member_ids?.length || 0}
-                      </span>
-                    </button>
+                      </button>
+                      <div className="flex items-center gap-1 shrink-0 ml-1">
+                        <span className="text-[11.5px] font-mono text-[#6E717A] tabular-nums">
+                          {team.member_ids?.length || 0}
+                        </span>
+                        {isAdmin && onDeleteTeam && teams.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDeleteTeam(team.id);
+                            }}
+                            title={`Delete team ${team.name}`}
+                            className="p-1 rounded text-[#6E717A] hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
 
                     {/* Sub-item: Members & Roles under the active team */}
                     {isActive && (

@@ -76,6 +76,16 @@ interface BeforeInstallPromptEvent extends Event {
 
 const STORAGE_KEY = 'tianlane_pm_state_v5';
 const AUTH_STORAGE_KEY = 'tianlane_auth_user_v2';
+const DELETED_TEAMS_KEY = 'tianlane_deleted_team_ids_v1';
+
+const getDeletedTeamIds = (): string[] => {
+  try {
+    const raw = localStorage.getItem(DELETED_TEAMS_KEY);
+    return raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    return [];
+  }
+};
 
 export const App: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>(() => {
@@ -83,7 +93,7 @@ export const App: React.FC = () => {
     if (raw) {
       try {
         const parsed = (JSON.parse(raw).projects ?? SEED_PROJECTS) as Project[];
-        return parsed.map((p) => {
+        const mapped = parsed.map((p) => {
           if (!p.team_id) {
             if (p.code === '26-11' || p.id.includes('efms')) {
               return { ...p, team_id: 'team-efms' };
@@ -95,6 +105,9 @@ export const App: React.FC = () => {
           }
           return p;
         });
+        const existingIds = new Set(mapped.map((p) => p.id));
+        const missingSeeds = SEED_PROJECTS.filter((p) => !existingIds.has(p.id));
+        return [...mapped, ...missingSeeds];
       } catch {
         return SEED_PROJECTS;
       }
@@ -106,7 +119,10 @@ export const App: React.FC = () => {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       try {
-        return JSON.parse(raw).milestones ?? SEED_MILESTONES;
+        const parsed = (JSON.parse(raw).milestones ?? SEED_MILESTONES) as ProjectMilestone[];
+        const existingIds = new Set(parsed.map((m) => m.id));
+        const missingSeeds = SEED_MILESTONES.filter((m) => !existingIds.has(m.id));
+        return [...parsed, ...missingSeeds];
       } catch {
         return SEED_MILESTONES;
       }
@@ -118,7 +134,10 @@ export const App: React.FC = () => {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       try {
-        return JSON.parse(raw).tasks ?? SEED_TASKS;
+        const parsed = (JSON.parse(raw).tasks ?? SEED_TASKS) as ProjectTask[];
+        const existingIds = new Set(parsed.map((t) => t.id));
+        const missingSeeds = SEED_TASKS.filter((t) => !existingIds.has(t.id));
+        return [...parsed, ...missingSeeds];
       } catch {
         return SEED_TASKS;
       }
@@ -201,15 +220,33 @@ export const App: React.FC = () => {
   });
 
   const [teams, setTeams] = useState<Team[]>(() => {
+    const deletedIds = new Set(getDeletedTeamIds());
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       try {
-        return JSON.parse(raw).teams ?? SEED_TEAMS;
+        const parsed = (JSON.parse(raw).teams ?? SEED_TEAMS) as Team[];
+        const filtered = parsed.filter((t) => !deletedIds.has(t.id));
+        const existingIds = new Set(filtered.map((t) => t.id));
+        const missingSeeds = SEED_TEAMS.filter(
+          (t) => !existingIds.has(t.id) && !deletedIds.has(t.id)
+        );
+        const combined = [...filtered, ...missingSeeds];
+        return combined.map((t) => {
+          if (t.id === 'team-efms' && (t.name.startsWith('Tú Mai') || t.name === 'eFMS')) {
+            return {
+              ...t,
+              name: 'eFMS',
+              description:
+                'Hệ thống quản lý giao nhận vận tải quốc tế & nội địa eFMS & eTMS',
+            };
+          }
+          return t;
+        });
       } catch {
-        return SEED_TEAMS;
+        return SEED_TEAMS.filter((t) => !deletedIds.has(t.id));
       }
     }
-    return SEED_TEAMS;
+    return SEED_TEAMS.filter((t) => !deletedIds.has(t.id));
   });
 
   const [activeTeamId, setActiveTeamId] = useState<string>(() => {
@@ -321,9 +358,28 @@ export const App: React.FC = () => {
         const remote = data?.state;
         if (remote && Array.isArray(remote.projects) && remote.projects.length > 0) {
           skipNextCloudSaveRef.current = true;
-          setProjects(remote.projects);
-          if (Array.isArray(remote.milestones)) setMilestones(remote.milestones);
-          if (Array.isArray(remote.tasks)) setTasks(remote.tasks);
+          const deletedIds = new Set(getDeletedTeamIds());
+
+          const projMap = new Map(remote.projects.map((p: Project) => [p.id, p]));
+          for (const sp of SEED_PROJECTS) {
+            if (!projMap.has(sp.id)) projMap.set(sp.id, sp);
+          }
+          setProjects(Array.from(projMap.values()));
+
+          if (Array.isArray(remote.milestones)) {
+            const msMap = new Map(remote.milestones.map((m: ProjectMilestone) => [m.id, m]));
+            for (const sm of SEED_MILESTONES) {
+              if (!msMap.has(sm.id)) msMap.set(sm.id, sm);
+            }
+            setMilestones(Array.from(msMap.values()));
+          }
+          if (Array.isArray(remote.tasks)) {
+            const tMap = new Map(remote.tasks.map((t: ProjectTask) => [t.id, t]));
+            for (const st of SEED_TASKS) {
+              if (!tMap.has(st.id)) tMap.set(st.id, st);
+            }
+            setTasks(Array.from(tMap.values()));
+          }
           if (Array.isArray(remote.documents)) setDocuments(remote.documents);
           if (Array.isArray(remote.docRequirements))
             setDocRequirements(remote.docRequirements);
@@ -331,7 +387,26 @@ export const App: React.FC = () => {
             setRevisionLogs(remote.revisionLogs);
           if (Array.isArray(remote.templates)) setTemplates(remote.templates);
           if (Array.isArray(remote.teams) && remote.teams.length > 0) {
-            setTeams(remote.teams);
+            const teamMap = new Map(remote.teams.map((t: Team) => [t.id, t]));
+            for (const st of SEED_TEAMS) {
+              if (!teamMap.has(st.id) && !deletedIds.has(st.id)) {
+                teamMap.set(st.id, st);
+              }
+            }
+            const cleanedTeams = Array.from(teamMap.values())
+              .filter((t) => !deletedIds.has(t.id))
+              .map((t) => {
+                if (t.id === 'team-efms' && (t.name.startsWith('Tú Mai') || t.name === 'eFMS')) {
+                  return {
+                    ...t,
+                    name: 'eFMS',
+                    description:
+                      'Hệ thống quản lý giao nhận vận tải quốc tế & nội địa eFMS & eTMS',
+                  };
+                }
+                return t;
+              });
+            if (cleanedTeams.length > 0) setTeams(cleanedTeams);
           }
           if (Array.isArray(remote.users) && remote.users.length > 0) {
             const validEmails = new Set(
@@ -670,6 +745,52 @@ export const App: React.FC = () => {
     setTeams((prev) => [...prev, newTeam]);
     setActiveTeamId(newTeam.id);
     showToast(`Created team: ${newTeam.name} (${newTeam.code}).`);
+  };
+
+  const handleDeleteTeam = (teamId: string) => {
+    const targetTeam = teams.find((t) => t.id === teamId);
+    if (!targetTeam) return;
+
+    if (teams.length <= 1) {
+      showToast('Cannot delete the last remaining team in workspace.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Are you sure you want to delete team "${targetTeam.name}"?\nAll projects, milestones, and tasks under this team will also be deleted.`
+    );
+    if (!confirmed) return;
+
+    const deletedIds = getDeletedTeamIds();
+    if (!deletedIds.includes(teamId)) {
+      localStorage.setItem(
+        DELETED_TEAMS_KEY,
+        JSON.stringify([...deletedIds, teamId])
+      );
+    }
+
+    const projsToDelete = projects.filter((p) => p.team_id === teamId);
+    const projIdsToDelete = new Set(projsToDelete.map((p) => p.id));
+
+    const remainingTeams = teams.filter((t) => t.id !== teamId);
+    setTeams(remainingTeams);
+    setProjects((prev) => prev.filter((p) => p.team_id !== teamId));
+    setMilestones((prev) =>
+      prev.filter((m) => !projIdsToDelete.has(m.project_id))
+    );
+    setTasks((prev) => prev.filter((t) => !projIdsToDelete.has(t.project_id)));
+    setDocuments((prev) =>
+      prev.filter((d) => !projIdsToDelete.has(d.project_id))
+    );
+    setDocRequirements((prev) =>
+      prev.filter((r) => !projIdsToDelete.has(r.project_id))
+    );
+
+    if (activeTeamId === teamId && remainingTeams.length > 0) {
+      handleSelectTeam(remainingTeams[0].id);
+    }
+
+    showToast(`Deleted team "${targetTeam.name}".`);
   };
 
   const handleUpdateMemberRole = async (
@@ -1579,6 +1700,7 @@ export const App: React.FC = () => {
             activeTeamId={activeTeamId}
             onSelectTeam={handleSelectTeam}
             onOpenCreateTeam={() => setIsCreateTeamOpen(true)}
+            onDeleteTeam={handleDeleteTeam}
             workspaceOpen={workspaceOpen}
             onToggleWorkspace={() => setWorkspaceOpen((v) => !v)}
             teamsOpen={teamsOpen}
@@ -1702,6 +1824,7 @@ export const App: React.FC = () => {
                   onUpdateMemberRole={handleUpdateMemberRole}
                   onUpdateProjectMemberRole={handleUpdateMemberProjectRole}
                   onOpenCreateTeam={() => setIsCreateTeamOpen(true)}
+                  onDeleteTeam={handleDeleteTeam}
                   onOpenMembersModal={() => setIsMembersModalOpen(true)}
                   onOpenAuthModal={() => setIsAuthModalOpen(true)}
                   onOpenUserProfile={() => setIsUserProfileOpen(true)}

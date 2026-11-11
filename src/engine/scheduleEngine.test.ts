@@ -11,7 +11,9 @@ import {
 } from './scheduleEngine.ts';
 import {
   authenticateLogtechubUser,
+  SEED_MILESTONES,
   SEED_PROJECTS,
+  SEED_TASKS,
   SEED_TEAMS,
   SEED_TEMPLATES,
   SEED_USERS,
@@ -201,12 +203,47 @@ assert.equal(controlTowerProjects.length, 1);
 assert.equal(controlTowerProjects[0].code, '19-03');
 
 const efmsProjects = SEED_PROJECTS.filter((p) => p.team_id === teamEfms.id);
-assert.equal(efmsProjects.length, 1);
-assert.equal(efmsProjects[0].code, '26-11');
+assert.equal(efmsProjects.length, 2, 'Should have 2 projects in eFMS team (26-11 & PL071026)');
+const pl071026Proj = efmsProjects.find((p) => p.code === 'PL071026')!;
+assert.ok(pl071026Proj, 'PL071026 project must exist in eFMS team');
+assert.equal(pl071026Proj.odoo_project_id, 16);
+
+// Verify PL071026 has exactly 1 milestone from 2026-11-11 to 2026-12-18
+const pl071026Milestones = SEED_MILESTONES.filter((m) => m.project_id === pl071026Proj.id);
+assert.equal(pl071026Milestones.length, 1, 'PL071026 must have exactly 1 milestone');
+assert.equal(pl071026Milestones[0].planned_start, '2026-11-11');
+assert.equal(pl071026Milestones[0].planned_end, '2026-12-18');
+
+// Verify all 9 tasks are seeded with Odoo task IDs and URLs
+const pl071026Tasks = SEED_TASKS.filter((t) => t.project_id === pl071026Proj.id);
+assert.equal(pl071026Tasks.length, 9, 'PL071026 must have all 9 requirements as tasks');
+
+// Req 8 is linked to existing Odoo task 11543
+const req8Task = pl071026Tasks.find((t) => t.odoo_task_id === 11543);
+assert.ok(req8Task, 'Requirement 8 must link to Odoo task ID 11543');
+assert.ok(req8Task.title.includes('[PL071026][eOperations]'));
+
+// Check Odoo task IDs for other tasks
+const odooTaskIds = pl071026Tasks.map((t) => t.odoo_task_id);
+assert.ok(odooTaskIds.includes(12142), 'Task 1 must have Odoo task 12142');
+assert.ok(odooTaskIds.includes(12143), 'Task 2 must have Odoo task 12143');
+assert.ok(odooTaskIds.includes(12144), 'Task 3 must have Odoo task 12144');
+assert.ok(odooTaskIds.includes(12145), 'Task 4 must have Odoo task 12145');
+assert.ok(odooTaskIds.includes(12146), 'Task 5 must have Odoo task 12146');
+assert.ok(odooTaskIds.includes(12147), 'Task 6 must have Odoo task 12147');
+assert.ok(odooTaskIds.includes(12148), 'Task 7 must have Odoo task 12148');
+assert.ok(odooTaskIds.includes(12149), 'Task 9 must have Odoo task 12149');
+
+for (const t of pl071026Tasks) {
+  assert.ok(t.odoo_task_url?.includes(String(t.odoo_task_id)));
+  assert.ok(t.planned_start >= '2026-11-11');
+  assert.ok(t.due_date <= '2026-12-18');
+}
 
 // Even Admin filtering on teamControlTower.id CANNOT see efms projects
 const adminVisibleInControlTower = SEED_PROJECTS.filter((p) => p.team_id === teamControlTower.id);
 assert.ok(!adminVisibleInControlTower.some((p) => p.code === '26-11'), 'Admin in Control Tower must NOT see eFMS projects');
+assert.ok(!adminVisibleInControlTower.some((p) => p.code === 'PL071026'), 'Admin in Control Tower must NOT see PL071026 project');
 
 // Template instantiation must assign team_id
 const instantiatedWithTeam = instantiateProjectFromTemplateEngine({
@@ -235,5 +272,22 @@ assert.equal(daleyAccessibleTeams[0].id, 'team-efms');
 // Admin sees all teams in Team & Access
 const adminAccessibleTeams = SEED_TEAMS.filter((t) => canUserAccessTeam(t, creatorUser));
 assert.equal(adminAccessibleTeams.length, SEED_TEAMS.length, 'Admin must see all teams under Team & Access');
+
+// 13. Test Team Deletion Logic & Cascading Cleanup
+const teamToDelete = SEED_TEAMS[2]; // team-rnd
+const initialProjectCount = SEED_PROJECTS.length;
+const rndProjects = SEED_PROJECTS.filter((p) => p.team_id === teamToDelete.id);
+const rndProjIds = new Set(rndProjects.map((p) => p.id));
+
+const remainingTeamsAfterDelete = SEED_TEAMS.filter((t) => t.id !== teamToDelete.id);
+assert.equal(remainingTeamsAfterDelete.length, SEED_TEAMS.length - 1);
+
+const remainingProjectsAfterDelete = SEED_PROJECTS.filter((p) => p.team_id !== teamToDelete.id);
+assert.equal(remainingProjectsAfterDelete.length, initialProjectCount - rndProjects.length);
+
+const remainingMilestonesAfterDelete = SEED_MILESTONES.filter((m) => !rndProjIds.has(m.project_id));
+const remainingTasksAfterDelete = SEED_TASKS.filter((t) => !rndProjIds.has(t.project_id));
+assert.ok(remainingMilestonesAfterDelete.length < SEED_MILESTONES.length);
+assert.ok(remainingTasksAfterDelete.length < SEED_TASKS.length);
 
 console.log('✓ All Tianlane scheduleEngine, RBAC, Multi-Team Access, R2 Presigner & Odoo MCP assertions passed.');
