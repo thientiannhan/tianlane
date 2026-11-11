@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Plus } from 'lucide-react';
 import {
   canUserAccessTeam,
   canUserEditProject,
@@ -94,13 +95,13 @@ export const App: React.FC = () => {
       try {
         const parsed = (JSON.parse(raw).projects ?? SEED_PROJECTS) as Project[];
         const mapped = parsed.map((p) => {
+          if (p.code === 'PL071026' || p.code === '26-11' || p.id.includes('efms')) {
+            return { ...p, team_id: 'team-efms' };
+          }
+          if (p.code === 'RND-01' || p.id.includes('rnd')) {
+            return { ...p, team_id: 'team-rnd' };
+          }
           if (!p.team_id) {
-            if (p.code === '26-11' || p.id.includes('efms')) {
-              return { ...p, team_id: 'team-efms' };
-            }
-            if (p.code === 'RND-01' || p.id.includes('rnd')) {
-              return { ...p, team_id: 'team-rnd' };
-            }
             return { ...p, team_id: 'team-control-tower' };
           }
           return p;
@@ -231,8 +232,48 @@ export const App: React.FC = () => {
           (t) => !existingIds.has(t.id) && !deletedIds.has(t.id)
         );
         const combined = [...filtered, ...missingSeeds];
-        return combined.map((t) => {
-          if (t.id === 'team-efms' && (t.name.startsWith('Tú Mai') || t.name === 'eFMS')) {
+        // Deduplicate and merge any eFMS teams created by user with the primary eFMS team
+        const efmsTeams = combined.filter(
+          (t) =>
+            t.id === 'team-efms' ||
+            t.code === 'EFMS' ||
+            t.name.trim().toLowerCase() === 'efms' ||
+            t.name.startsWith('Tú Mai')
+        );
+        let finalTeams = combined;
+        if (efmsTeams.length > 1) {
+          const primary =
+            efmsTeams.find((t) => t.id === 'team-efms') || efmsTeams[0];
+          const allMemberIds = Array.from(
+            new Set(efmsTeams.flatMap((t) => t.member_ids || []))
+          );
+          const allPmIds = Array.from(
+            new Set(efmsTeams.flatMap((t) => t.pm_ids || []))
+          );
+          const mergedEfms: Team = {
+            ...primary,
+            id: 'team-efms',
+            name: 'eFMS',
+            code: 'EFMS',
+            description:
+              'Hệ thống quản lý giao nhận vận tải quốc tế & nội địa eFMS & eTMS',
+            icon: '🚢',
+            member_ids:
+              allMemberIds.length > 0 ? allMemberIds : primary.member_ids,
+            pm_ids: allPmIds.length > 0 ? allPmIds : primary.pm_ids,
+          };
+          const efmsIds = new Set(efmsTeams.map((t) => t.id));
+          finalTeams = [
+            mergedEfms,
+            ...combined.filter((t) => !efmsIds.has(t.id)),
+          ];
+        }
+
+        return finalTeams.map((t) => {
+          if (
+            t.id === 'team-efms' &&
+            (t.name.startsWith('Tú Mai') || t.name === 'eFMS')
+          ) {
             return {
               ...t,
               name: 'eFMS',
@@ -360,21 +401,29 @@ export const App: React.FC = () => {
           skipNextCloudSaveRef.current = true;
           const deletedIds = new Set(getDeletedTeamIds());
 
-          const projMap = new Map(remote.projects.map((p: Project) => [p.id, p]));
+          const projMap = new Map<string, Project>(
+            (remote.projects as Project[]).map((p: Project) => [p.id, p])
+          );
           for (const sp of SEED_PROJECTS) {
             if (!projMap.has(sp.id)) projMap.set(sp.id, sp);
           }
           setProjects(Array.from(projMap.values()));
 
           if (Array.isArray(remote.milestones)) {
-            const msMap = new Map(remote.milestones.map((m: ProjectMilestone) => [m.id, m]));
+            const msMap = new Map<string, ProjectMilestone>(
+              (remote.milestones as ProjectMilestone[]).map(
+                (m: ProjectMilestone) => [m.id, m]
+              )
+            );
             for (const sm of SEED_MILESTONES) {
               if (!msMap.has(sm.id)) msMap.set(sm.id, sm);
             }
             setMilestones(Array.from(msMap.values()));
           }
           if (Array.isArray(remote.tasks)) {
-            const tMap = new Map(remote.tasks.map((t: ProjectTask) => [t.id, t]));
+            const tMap = new Map<string, ProjectTask>(
+              (remote.tasks as ProjectTask[]).map((t: ProjectTask) => [t.id, t])
+            );
             for (const st of SEED_TASKS) {
               if (!tMap.has(st.id)) tMap.set(st.id, st);
             }
@@ -387,16 +436,21 @@ export const App: React.FC = () => {
             setRevisionLogs(remote.revisionLogs);
           if (Array.isArray(remote.templates)) setTemplates(remote.templates);
           if (Array.isArray(remote.teams) && remote.teams.length > 0) {
-            const teamMap = new Map(remote.teams.map((t: Team) => [t.id, t]));
+            const teamMap = new Map<string, Team>(
+              (remote.teams as Team[]).map((t: Team) => [t.id, t])
+            );
             for (const st of SEED_TEAMS) {
               if (!teamMap.has(st.id) && !deletedIds.has(st.id)) {
                 teamMap.set(st.id, st);
               }
             }
-            const cleanedTeams = Array.from(teamMap.values())
-              .filter((t) => !deletedIds.has(t.id))
-              .map((t) => {
-                if (t.id === 'team-efms' && (t.name.startsWith('Tú Mai') || t.name === 'eFMS')) {
+            const cleanedTeams: Team[] = Array.from(teamMap.values())
+              .filter((t: Team) => !deletedIds.has(t.id))
+              .map((t: Team) => {
+                if (
+                  t.id === 'team-efms' &&
+                  (t.name.startsWith('Tú Mai') || t.name === 'eFMS')
+                ) {
                   return {
                     ...t,
                     name: 'eFMS',
@@ -1217,7 +1271,7 @@ export const App: React.FC = () => {
     avatarUrl?: string;
     teamId?: string;
   }) => {
-    const assignedTeamId = payload.teamId || activeTeam.id;
+    const assignedTeamId = payload.teamId || activeTeam?.id || 'team-efms';
     const result = instantiateProjectFromTemplateEngine({
       template: payload.template,
       projectName: payload.projectName,
@@ -2016,7 +2070,7 @@ export const App: React.FC = () => {
         isOpen={isTemplateModalOpen}
         templates={templates}
         teams={accessibleTeams}
-        activeTeamId={activeTeam.id}
+        activeTeamId={activeTeam?.id || 'team-efms'}
         users={users}
         currentUser={currentUser}
         referenceTodayISO={REFERENCE_TODAY_ISO}

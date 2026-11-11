@@ -26,6 +26,7 @@ import {
   isProjectCreator,
   isUserAdmin,
   isUserTeamPM,
+  type UserProfile,
 } from '../types.ts';
 // @ts-expect-error .mjs server module
 import { createR2PresignedPutUrl } from '../../server/r2Presign.mjs';

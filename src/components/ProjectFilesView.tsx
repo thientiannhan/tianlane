@@ -113,12 +113,12 @@ export const ProjectFilesView: React.FC<ProjectFilesViewProps> = ({
   );
   const [reqMandatory, setReqMandatory] = useState<boolean>(true);
 
-  const projectDocs = documents.filter(
-    (d) => d.project_id === activeProject.id
-  );
-  const projectReqs = docRequirements.filter(
-    (r) => r.project_id === activeProject.id
-  );
+  const projectDocs = activeProject
+    ? documents.filter((d) => d.project_id === activeProject.id)
+    : [];
+  const projectReqs = activeProject
+    ? docRequirements.filter((r) => r.project_id === activeProject.id)
+    : [];
 
   // Compute fulfilled count
   const fulfilledReqsCount = projectReqs.filter((req) =>
@@ -134,7 +134,7 @@ export const ProjectFilesView: React.FC<ProjectFilesViewProps> = ({
     setUploadMilestoneId(req.milestone_id ?? milestones[0]?.id ?? '');
     setUploadVersion('v1.0');
     setUploadFileName(
-      `${activeProject.code.replace(/[^a-zA-Z0-9]/g, '_')}_${req.doc_type.replace(
+      `${(activeProject?.code || 'PROJECT').replace(/[^a-zA-Z0-9]/g, '_')}_${req.doc_type.replace(
         /\s+/g,
         '_'
       )}_v1.0.pdf`

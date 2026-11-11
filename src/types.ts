@@ -218,9 +218,11 @@ export function isUserTeamPM(
 ): boolean {
   if (!team || !user) return false;
   if (isUserAdmin(user)) return true;
+  const pmIds = team.pm_ids || [];
+  const memberIds = team.member_ids || [];
   return (
-    team.pm_ids.includes(user.id) ||
-    (user.role === 'Product Owner' && team.member_ids.includes(user.id))
+    pmIds.includes(user.id) ||
+    (user.role === 'Product Owner' && memberIds.includes(user.id))
   );
 }
 
@@ -230,7 +232,9 @@ export function canUserAccessTeam(
 ): boolean {
   if (!user) return false;
   if (isUserAdmin(user)) return true;
-  return team.member_ids.includes(user.id) || team.pm_ids.includes(user.id);
+  const memberIds = team.member_ids || [];
+  const pmIds = team.pm_ids || [];
+  return memberIds.includes(user.id) || pmIds.includes(user.id);
 }
 
 export function getUserProjectRole(
