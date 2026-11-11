@@ -7,13 +7,14 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import type { Project, ProjectMilestone } from '../types.ts';
+import type { Project, ProjectMilestone, Team } from '../types.ts';
 import { addDaysISO, diffDaysISO } from '../engine/scheduleEngine.ts';
 
 interface ProjectEditModalProps {
   isOpen: boolean;
   project: Project;
   milestones: ProjectMilestone[];
+  teams?: Team[];
   totalProjectsCount: number;
   odooBaseUrl: string;
   canDeleteProject?: boolean;
@@ -33,6 +34,7 @@ export const ProjectEditModal: React.FC<ProjectEditModalProps> = ({
   isOpen,
   project,
   milestones,
+  teams,
   totalProjectsCount,
   odooBaseUrl,
   canDeleteProject = true,
@@ -43,6 +45,7 @@ export const ProjectEditModal: React.FC<ProjectEditModalProps> = ({
   const [code, setCode] = useState(project.code);
   const [name, setName] = useState(project.name);
   const [avatarUrl, setAvatarUrl] = useState(project.avatar_url || '');
+  const [teamId, setTeamId] = useState(project.team_id || '');
   const [clientOrUnit, setClientOrUnit] = useState(project.client_or_unit);
   const [description, setDescription] = useState(project.description);
   const [status, setStatus] = useState<Project['status']>(project.status);
@@ -61,6 +64,7 @@ export const ProjectEditModal: React.FC<ProjectEditModalProps> = ({
       setCode(project.code);
       setName(project.name);
       setAvatarUrl(project.avatar_url || '');
+      setTeamId(project.team_id || (teams && teams[0]?.id) || 'team-control-tower');
       setClientOrUnit(project.client_or_unit);
       setDescription(project.description);
       setStatus(project.status);
@@ -159,6 +163,7 @@ export const ProjectEditModal: React.FC<ProjectEditModalProps> = ({
       code: cleanCode,
       name: cleanName,
       avatar_url: avatarUrl.trim() || undefined,
+      team_id: teamId || project.team_id || 'team-control-tower',
       client_or_unit: clientOrUnit.trim() || 'Enterprise Unit',
       description: description.trim(),
       status,
@@ -326,6 +331,32 @@ export const ProjectEditModal: React.FC<ProjectEditModalProps> = ({
                 placeholder="Enterprise Digital"
               />
             </div>
+
+            {teams && teams.length > 0 && (
+              <div className="md:col-span-12">
+                <label
+                  htmlFor="edit-project-team"
+                  className="block text-[12px] font-medium text-[#45474D] mb-1"
+                >
+                  Linked Team (1:1 Boundary)
+                </label>
+                <select
+                  id="edit-project-team"
+                  value={teamId}
+                  onChange={(e) => setTeamId(e.target.value)}
+                  className="w-full px-3.5 py-2 rounded-xl border border-[#E6E8EE] text-[13px] text-[#121317] bg-white outline-none"
+                >
+                  {teams.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.icon || '🏢'} {t.name} ({t.code})
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-[#6E717A] mt-1">
+                  Projects belong strictly to one team. Members of other teams cannot access this project.
+                </p>
+              </div>
+            )}
 
             <div className="md:col-span-12">
               <label

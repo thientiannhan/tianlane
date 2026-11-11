@@ -188,4 +188,52 @@ assert.equal(canUserAccessTeam(teamControlTower, writerUser), true);
 // Test Project avatar logo field
 assert.ok(SEED_PROJECTS[0].avatar_url, 'Seed project should have avatar URL');
 
+// 12. Strict 1:1 Project-to-Team Boundary & Isolation Tests
+// Assert all projects strictly belong to exactly 1 team
+for (const p of SEED_PROJECTS) {
+  assert.ok(p.team_id, `Project ${p.code} must have a non-empty team_id`);
+  assert.ok(SEED_TEAMS.some((t) => t.id === p.team_id), `Project ${p.code} must point to a valid seeded team`);
+}
+
+// Assert project filtering strictly isolates projects per active team
+const controlTowerProjects = SEED_PROJECTS.filter((p) => p.team_id === teamControlTower.id);
+assert.equal(controlTowerProjects.length, 1);
+assert.equal(controlTowerProjects[0].code, '19-03');
+
+const efmsProjects = SEED_PROJECTS.filter((p) => p.team_id === teamEfms.id);
+assert.equal(efmsProjects.length, 1);
+assert.equal(efmsProjects[0].code, '26-11');
+
+// Even Admin filtering on teamControlTower.id CANNOT see efms projects
+const adminVisibleInControlTower = SEED_PROJECTS.filter((p) => p.team_id === teamControlTower.id);
+assert.ok(!adminVisibleInControlTower.some((p) => p.code === '26-11'), 'Admin in Control Tower must NOT see eFMS projects');
+
+// Template instantiation must assign team_id
+const instantiatedWithTeam = instantiateProjectFromTemplateEngine({
+  template: SEED_TEMPLATES[0],
+  projectName: 'New RND Tool',
+  projectCode: 'RND-02',
+  clientOrUnit: 'R&D',
+  startDateISO: '2026-11-20',
+  odooProjectId: 99,
+  odooBaseUrl: 'https://erp.tianlane.vn',
+  ownerId: creatorUser.id,
+  users: SEED_USERS,
+  teamId: 'team-rnd',
+});
+assert.equal(instantiatedWithTeam.project.team_id, 'team-rnd', 'Project instantiated from template must inherit team_id');
+
+// Non-admin user team isolation
+const daleyUser = SEED_USERS.find((u) => u.email === 'daley.thai@logtechub.com')!;
+assert.equal(canUserAccessTeam(teamControlTower, daleyUser), false, 'Daley should not access Control Tower team');
+assert.equal(canUserAccessTeam(teamEfms, daleyUser), true, 'Daley should access eFMS team');
+
+const daleyAccessibleTeams = SEED_TEAMS.filter((t) => canUserAccessTeam(t, daleyUser));
+assert.equal(daleyAccessibleTeams.length, 1);
+assert.equal(daleyAccessibleTeams[0].id, 'team-efms');
+
+// Admin sees all teams in Team & Access
+const adminAccessibleTeams = SEED_TEAMS.filter((t) => canUserAccessTeam(t, creatorUser));
+assert.equal(adminAccessibleTeams.length, SEED_TEAMS.length, 'Admin must see all teams under Team & Access');
+
 console.log('✓ All Tianlane scheduleEngine, RBAC, Multi-Team Access, R2 Presigner & Odoo MCP assertions passed.');

@@ -206,6 +206,7 @@ export function instantiateProjectFromTemplateEngine(params: {
   odooBaseUrl: string;
   ownerId: string;
   users: UserProfile[];
+  teamId?: string;
 }): {
   project: Project;
   milestones: ProjectMilestone[];
@@ -221,6 +222,7 @@ export function instantiateProjectFromTemplateEngine(params: {
     odooBaseUrl,
     ownerId,
     users,
+    teamId,
   } = params;
 
   const projectId = `proj-${Date.now()}`;
@@ -234,6 +236,7 @@ export function instantiateProjectFromTemplateEngine(params: {
     template_id: template.id,
     status: 'on_track',
     owner_id: ownerId,
+    team_id: teamId || 'team-control-tower',
     odoo_project_id: odooProjectId,
     odoo_project_url: `${odooBaseUrl}/web#id=${odooProjectId}&model=project.project&view_type=form`,
     start_date: startDateISO,

@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
-import type { ProjectTemplate, UserProfile } from '../types.ts';
+import type { ProjectTemplate, Team, UserProfile } from '../types.ts';
 import { addDaysISO } from '../engine/scheduleEngine.ts';
 
 interface TemplateModalProps {
   isOpen: boolean;
   onClose: () => void;
   templates: ProjectTemplate[];
+  teams?: Team[];
+  activeTeamId?: string;
   users?: UserProfile[];
   currentUser?: UserProfile;
   referenceTodayISO?: string;
@@ -19,6 +21,7 @@ interface TemplateModalProps {
     odooProjectId: number;
     autoPushToOdoo: boolean;
     avatarUrl?: string;
+    teamId?: string;
   }) => void;
 }
 
@@ -26,6 +29,8 @@ export const TemplateModal: React.FC<TemplateModalProps> = ({
   isOpen,
   onClose,
   templates,
+  teams,
+  activeTeamId,
   onInstantiate,
 }) => {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(
@@ -35,6 +40,9 @@ export const TemplateModal: React.FC<TemplateModalProps> = ({
   const [projectCode, setProjectCode] = useState('26-12');
   const [clientOrUnit, setClientOrUnit] = useState('Commercial Operations');
   const [avatarUrl, setAvatarUrl] = useState('');
+  const [selectedTeamId, setSelectedTeamId] = useState<string>(() => {
+    return activeTeamId || (teams && teams[0]?.id) || 'team-control-tower';
+  });
   const [startDateISO, setStartDateISO] = useState('2026-11-16');
   const [odooProjectId, setOdooProjectId] = useState('64');
   const [autoPushToOdoo, setAutoPushToOdoo] = useState(true);
@@ -66,6 +74,7 @@ export const TemplateModal: React.FC<TemplateModalProps> = ({
       odooProjectId: parsedOdooId,
       autoPushToOdoo,
       avatarUrl: avatarUrl.trim() || undefined,
+      teamId: selectedTeamId,
     });
     onClose();
   };
@@ -198,6 +207,32 @@ export const TemplateModal: React.FC<TemplateModalProps> = ({
                 className="w-full px-3.5 py-2 rounded-xl border border-[#E6E8EE] text-[13px] text-[#121317] outline-none"
               />
             </div>
+
+            {teams && teams.length > 0 && (
+              <div className="md:col-span-12">
+                <label
+                  htmlFor="input-project-team"
+                  className="block text-[12px] text-[#45474D] mb-1"
+                >
+                  Assigned Team (1:1 Boundary)
+                </label>
+                <select
+                  id="input-project-team"
+                  value={selectedTeamId}
+                  onChange={(e) => setSelectedTeamId(e.target.value)}
+                  className="w-full px-3.5 py-2 rounded-xl border border-[#E6E8EE] text-[13px] text-[#121317] bg-white outline-none"
+                >
+                  {teams.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.icon || '🏢'} {t.name} ({t.code})
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-[#6E717A] mt-1">
+                  Only members of this team will be able to access and view this project.
+                </p>
+              </div>
+            )}
 
             <div className="md:col-span-4">
               <label

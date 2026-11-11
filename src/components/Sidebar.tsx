@@ -99,9 +99,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // Admin sees all teams; other users only see teams they belong to
   const accessibleTeams = teams.filter((t) => canUserAccessTeam(t, currentUser));
 
-  // Projects filtered by the currently active team
+  // Projects strictly filtered by the currently active team (1:1 boundary)
   const visibleProjects = projects.filter(
-    (p) => !p.team_id || p.team_id === activeTeam?.id
+    (p) => p.team_id === activeTeam?.id
   );
 
   const isPmOfActiveTeam = isUserTeamPM(activeTeam, currentUser);
@@ -565,38 +565,62 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
 
           {teamsOpen && (
-            <div className="space-y-0.5">
-              <button
-                type="button"
-                onClick={() => onSelectSection('team')}
-                className={`w-full px-2.5 py-1.5 rounded-lg flex items-center justify-between text-[13.5px] transition-colors ${
-                  activeSection === 'team'
-                    ? 'bg-[#ECEEF3] text-[#121317] font-medium'
-                    : 'text-[#45474D] hover:bg-[#ECEEF3]/60 hover:text-[#121317]'
-                }`}
-              >
-                <span className="flex items-center gap-2.5">
-                  <span className="w-4 h-4 rounded bg-[#0A4595] text-white text-[10px] font-semibold inline-flex items-center justify-center">
-                    {activeTeam?.icon || 'T'}
-                  </span>
-                  <span className="truncate">{activeTeam?.name || 'Team'}</span>
-                </span>
-                <span className="text-[11.5px] font-mono text-[#6E717A] tabular-nums">
-                  {activeTeam?.member_ids?.length || 0}
-                </span>
-              </button>
+            <div className="space-y-1">
+              {accessibleTeams.map((team) => {
+                const isActive = team.id === activeTeam?.id;
+                const isPm = team.pm_ids?.includes(currentUser.id);
+                return (
+                  <div key={team.id} className="space-y-0.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onSelectTeam(team.id);
+                      }}
+                      className={`w-full px-2.5 py-1.5 rounded-lg flex items-center justify-between text-[13px] transition-colors group cursor-pointer ${
+                        isActive
+                          ? 'bg-[#ECEEF3] text-[#121317] font-semibold'
+                          : 'text-[#45474D] hover:bg-[#ECEEF3]/60 hover:text-[#121317]'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2 truncate">
+                        <span className="text-[13px] shrink-0">
+                          {team.icon || '🏢'}
+                        </span>
+                        <span className="truncate">{team.name}</span>
+                        {isPm && (
+                          <span className="text-[9.5px] px-1 rounded bg-[#EEF3FB] text-[#0A4595] font-semibold shrink-0">
+                            PM
+                          </span>
+                        )}
+                      </span>
+                      <span className="text-[11.5px] font-mono text-[#6E717A] tabular-nums shrink-0 ml-1">
+                        {team.member_ids?.length || 0}
+                      </span>
+                    </button>
 
-              <div className="pl-6 space-y-0.5">
-                <button
-                  type="button"
-                  onClick={() => onSelectSection('team')}
-                  className="w-full text-left px-2.5 py-1 rounded-lg text-[12.5px] text-[#45474D] hover:bg-[#ECEEF3]/60 hover:text-[#121317] flex items-center gap-2"
-                >
-                  <Users className="w-3.5 h-3.5" aria-hidden="true" />
-                  <span>Members &amp; Roles</span>
-                </button>
+                    {/* Sub-item: Members & Roles under the active team */}
+                    {isActive && (
+                      <div className="pl-6 space-y-0.5">
+                        <button
+                          type="button"
+                          onClick={() => onSelectSection('team')}
+                          className={`w-full text-left px-2.5 py-1 rounded-lg text-[12px] flex items-center gap-2 transition-colors cursor-pointer ${
+                            activeSection === 'team'
+                              ? 'text-[#0A4595] font-medium bg-[#EEF3FB]'
+                              : 'text-[#45474D] hover:bg-[#ECEEF3]/60 hover:text-[#121317]'
+                          }`}
+                        >
+                          <Users className="w-3.5 h-3.5" aria-hidden="true" />
+                          <span>Members &amp; Roles</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
 
-                {isAdmin && onOpenCreateTeam && (
+              {isAdmin && onOpenCreateTeam && (
+                <div className="pt-1">
                   <button
                     type="button"
                     onClick={onOpenCreateTeam}
@@ -605,8 +629,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <Plus className="w-3 h-3" />
                     <span>Create new team...</span>
                   </button>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -15,6 +15,7 @@ import {
   isProjectCreator,
   type Project,
   type ProjectMilestone,
+  type Team,
   type UserProfile,
 } from '../types.ts';
 import type { SidebarSection } from './Sidebar.tsx';
@@ -26,7 +27,8 @@ import {
 
 interface ProjectTopBarProps {
   activeSection: SidebarSection;
-  activeProject: Project;
+  activeProject: Project | null;
+  activeTeam?: Team;
   currentUser: UserProfile;
   filterState: ProjectFilterState;
   onChangeFilter: (next: ProjectFilterState) => void;
@@ -45,6 +47,7 @@ interface ProjectTopBarProps {
 export const ProjectTopBar: React.FC<ProjectTopBarProps> = ({
   activeSection,
   activeProject,
+  activeTeam,
   currentUser,
   filterState,
   onChangeFilter,
@@ -59,10 +62,16 @@ export const ProjectTopBar: React.FC<ProjectTopBarProps> = ({
   onOpenMembersModal,
   onOpenCreateTask,
 }) => {
-  const userRole = getUserProjectRole(activeProject, currentUser);
-  const userIsCreator = isProjectCreator(activeProject, currentUser);
-  const canEdit = canUserEditProject(activeProject, currentUser);
-  const memberCount = Math.max(1, activeProject.members?.length ?? 1);
+  const userRole = activeProject
+    ? getUserProjectRole(activeProject, currentUser)
+    : 'viewer';
+  const userIsCreator = activeProject
+    ? isProjectCreator(activeProject, currentUser)
+    : false;
+  const canEdit = activeProject
+    ? canUserEditProject(activeProject, currentUser)
+    : false;
+  const memberCount = Math.max(1, activeProject?.members?.length ?? 1);
 
   return (
     <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#E6E8EE] px-6 py-3">
@@ -70,77 +79,86 @@ export const ProjectTopBar: React.FC<ProjectTopBarProps> = ({
         {/* Breadcrumb / Active View Title */}
         <div className="flex flex-wrap items-center gap-2.5 min-w-0">
           {activeSection === 'projects' ? (
-            <>
-              <span className="text-[13px] text-[#6E717A]">Projects</span>
-              <span className="text-[#E6E8EE]">/</span>
-              {activeProject.avatar_url && (
-                <img
-                  src={activeProject.avatar_url}
-                  alt={activeProject.name}
-                  className="w-5 h-5 rounded object-cover border border-[#E6E8EE] shrink-0"
-                />
-              )}
-              <span className="font-mono text-[12.5px] text-[#45474D] tabular-nums">
-                {activeProject.code}
-              </span>
-              <h1 className="text-[16px] font-medium text-[#121317] truncate">
-                {activeProject.name}
-              </h1>
-
-              {/* Active User Role Badge in this Project */}
-              <button
-                type="button"
-                onClick={onOpenMembersModal}
-                title="View members and project permissions"
-                className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium border transition-colors ${
-                  userRole === 'owner'
-                    ? 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
-                    : userRole === 'writer'
-                    ? 'bg-[#EEF3FB] text-[#0A4595] border-[#B7CDF5] hover:bg-[#E0EAFA]'
-                    : 'bg-[#F1F3F7] text-[#45474D] border-[#E6E8EE] hover:bg-[#E6E8EE]'
-                }`}
-              >
-                {userRole === 'owner' ? (
-                  <Crown className="w-3 h-3 text-amber-600" />
-                ) : userRole === 'writer' ? (
-                  <Pencil className="w-3 h-3 text-[#0A4595]" />
-                ) : (
-                  <Eye className="w-3 h-3 text-[#45474D]" />
+            activeProject ? (
+              <>
+                <span className="text-[13px] text-[#6E717A]">Projects</span>
+                <span className="text-[#E6E8EE]">/</span>
+                {activeProject.avatar_url && (
+                  <img
+                    src={activeProject.avatar_url}
+                    alt={activeProject.name}
+                    className="w-5 h-5 rounded object-cover border border-[#E6E8EE] shrink-0"
+                  />
                 )}
-                <span>
-                  {userIsCreator
-                    ? 'Owner (Creator)'
-                    : userRole === 'owner'
-                    ? 'Owner'
-                    : userRole === 'writer'
-                    ? 'Writer'
-                    : 'Viewer'}
+                <span className="font-mono text-[12.5px] text-[#45474D] tabular-nums">
+                  {activeProject.code}
                 </span>
-              </button>
+                <h1 className="text-[16px] font-medium text-[#121317] truncate">
+                  {activeProject.name}
+                </h1>
 
-              <a
-                href={activeProject.odoo_project_url}
-                target="_blank"
-                rel="noreferrer"
-                title="Open execution tracker"
-                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border border-[#E6E8EE] hover:border-[#B7BFD9] text-[11.5px] font-mono text-[#45474D] hover:text-[#121317] transition-colors tabular-nums"
-              >
-                <span>Tracker #{activeProject.odoo_project_id}</span>
-                <ExternalLink className="w-3 h-3" aria-hidden="true" />
-              </a>
-
-              {canEdit && (
+                {/* Active User Role Badge in this Project */}
                 <button
                   type="button"
-                  onClick={onOpenEditProject}
-                  title="Edit project details, milestone dates, or delete project"
-                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border border-[#E6E8EE] hover:border-[#0A4595] bg-[#F7F8FA] hover:bg-[#EEF3FB] text-[11.5px] font-medium text-[#45474D] hover:text-[#0A4595] transition-colors"
+                  onClick={onOpenMembersModal}
+                  title="View members and project permissions"
+                  className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium border transition-colors ${
+                    userRole === 'owner'
+                      ? 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
+                      : userRole === 'writer'
+                      ? 'bg-[#EEF3FB] text-[#0A4595] border-[#B7CDF5] hover:bg-[#E0EAFA]'
+                      : 'bg-[#F1F3F7] text-[#45474D] border-[#E6E8EE] hover:bg-[#E6E8EE]'
+                  }`}
                 >
-                  <Pencil className="w-3 h-3" aria-hidden="true" />
-                  <span>Edit Project</span>
+                  {userRole === 'owner' ? (
+                    <Crown className="w-3 h-3 text-amber-600" />
+                  ) : userRole === 'writer' ? (
+                    <Pencil className="w-3 h-3 text-[#0A4595]" />
+                  ) : (
+                    <Eye className="w-3 h-3 text-[#45474D]" />
+                  )}
+                  <span>
+                    {userIsCreator
+                      ? 'Owner (Creator)'
+                      : userRole === 'owner'
+                      ? 'Owner'
+                      : userRole === 'writer'
+                      ? 'Writer'
+                      : 'Viewer'}
+                  </span>
                 </button>
-              )}
-            </>
+
+                <a
+                  href={activeProject.odoo_project_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  title="Open execution tracker"
+                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border border-[#E6E8EE] hover:border-[#B7BFD9] text-[11.5px] font-mono text-[#45474D] hover:text-[#121317] transition-colors tabular-nums"
+                >
+                  <span>Tracker #{activeProject.odoo_project_id}</span>
+                  <ExternalLink className="w-3 h-3" aria-hidden="true" />
+                </a>
+
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={onOpenEditProject}
+                    title="Edit project details, milestone dates, or delete project"
+                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border border-[#E6E8EE] hover:border-[#0A4595] bg-[#F7F8FA] hover:bg-[#EEF3FB] text-[11.5px] font-medium text-[#45474D] hover:text-[#0A4595] transition-colors"
+                  >
+                    <Pencil className="w-3 h-3" aria-hidden="true" />
+                    <span>Edit Project</span>
+                  </button>
+                )}
+              </>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-[14px]">{activeTeam?.icon || '🏢'}</span>
+                <h1 className="text-[16px] font-medium text-[#121317]">
+                  {activeTeam?.name || 'Workspace'} · No Projects
+                </h1>
+              </div>
+            )
           ) : (
             <h1 className="text-[16px] font-medium text-[#121317] capitalize">
               {activeSection === 'team'
@@ -150,7 +168,7 @@ export const ProjectTopBar: React.FC<ProjectTopBarProps> = ({
                 : activeSection === 'settings'
                 ? 'Project Standard Settings'
                 : activeSection === 'files'
-                ? `Files & Deliverables · ${activeProject.code}`
+                ? `Files & Deliverables · ${activeProject?.code || ''}`
                 : activeSection}
             </h1>
           )}
@@ -158,7 +176,7 @@ export const ProjectTopBar: React.FC<ProjectTopBarProps> = ({
 
         {/* Right Header Controls */}
         <div className="flex items-center gap-2">
-          {activeSection === 'projects' && canEdit && onOpenCreateTask && (
+          {activeSection === 'projects' && activeProject && canEdit && onOpenCreateTask && (
             <button
               type="button"
               onClick={onOpenCreateTask}
@@ -170,17 +188,19 @@ export const ProjectTopBar: React.FC<ProjectTopBarProps> = ({
             </button>
           )}
 
-          <button
-            type="button"
-            onClick={onOpenMembersModal}
-            title="Manage project members, access roles (Viewer / Writer / Owner), and invite links"
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-[#B7CDF5] bg-[#EEF3FB] hover:bg-[#E0EAFA] text-[12.5px] font-medium text-[#0A4595] transition-colors"
-          >
-            <Share2 className="w-3.5 h-3.5" aria-hidden="true" />
-            <span>Share / Members ({memberCount})</span>
-          </button>
+          {activeProject && (
+            <button
+              type="button"
+              onClick={onOpenMembersModal}
+              title="Manage project members, access roles (Viewer / Writer / Owner), and invite links"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-[#B7CDF5] bg-[#EEF3FB] hover:bg-[#E0EAFA] text-[12.5px] font-medium text-[#0A4595] transition-colors"
+            >
+              <Share2 className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>Share / Members ({memberCount})</span>
+            </button>
+          )}
 
-          {canEdit && (
+          {activeProject && canEdit && (
             <button
               type="button"
               onClick={onSyncOdoo}
@@ -207,7 +227,7 @@ export const ProjectTopBar: React.FC<ProjectTopBarProps> = ({
             <span>Install app</span>
           </button>
 
-          {activeSection === 'projects' && (
+          {activeSection === 'projects' && activeProject && (
             <ProjectHeaderControls
               filterState={filterState}
               onChangeFilter={onChangeFilter}

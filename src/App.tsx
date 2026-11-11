@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  canUserAccessTeam,
   canUserEditProject,
   getApiBaseUrl,
   isProjectCreator,
@@ -81,7 +82,19 @@ export const App: React.FC = () => {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       try {
-        return JSON.parse(raw).projects ?? SEED_PROJECTS;
+        const parsed = (JSON.parse(raw).projects ?? SEED_PROJECTS) as Project[];
+        return parsed.map((p) => {
+          if (!p.team_id) {
+            if (p.code === '26-11' || p.id.includes('efms')) {
+              return { ...p, team_id: 'team-efms' };
+            }
+            if (p.code === 'RND-01' || p.id.includes('rnd')) {
+              return { ...p, team_id: 'team-rnd' };
+            }
+            return { ...p, team_id: 'team-control-tower' };
+          }
+          return p;
+        });
       } catch {
         return SEED_PROJECTS;
       }
@@ -414,31 +427,65 @@ export const App: React.FC = () => {
     }
   };
 
+  const accessibleTeams = useMemo(() => {
+    return teams.filter((t) => canUserAccessTeam(t, currentUser));
+  }, [teams, currentUser]);
+
   const activeTeam = useMemo(() => {
-    return teams.find((t) => t.id === activeTeamId) ?? teams[0];
-  }, [teams, activeTeamId]);
+    const found = accessibleTeams.find((t) => t.id === activeTeamId);
+    return found ?? accessibleTeams[0] ?? teams[0];
+  }, [accessibleTeams, activeTeamId, teams]);
 
   const teamProjects = useMemo(() => {
-    if (!activeTeam) return projects;
-    return projects.filter((p) => !p.team_id || p.team_id === activeTeam.id);
+    if (!activeTeam) return [];
+    return projects.filter((p) => p.team_id === activeTeam.id);
   }, [projects, activeTeam]);
 
-  const activeProject =
-    teamProjects.find((p) => p.id === activeProjectId) ??
-    projects.find((p) => p.id === activeProjectId) ??
-    teamProjects[0] ??
-    projects[0];
-  const projectMilestones = milestones
-    .filter((m) => m.project_id === activeProject.id)
-    .sort((a, b) => a.order_index - b.order_index);
-  const projectTasks = tasks.filter((t) => t.project_id === activeProject.id);
-  const projectDocs = documents.filter((d) => d.project_id === activeProject.id);
-  const projectDocRequirements = docRequirements.filter(
-    (r) => r.project_id === activeProject.id
-  );
-  const projectRevisions = revisionLogs.filter(
-    (r) => r.project_id === activeProject.id
-  );
+  const activeProject = useMemo(() => {
+    return (
+      teamProjects.find((p) => p.id === activeProjectId) ??
+      teamProjects[0] ??
+      null
+    );
+  }, [teamProjects, activeProjectId]);
+
+  // Synchronize activeProjectId with activeTeam's projects
+  useEffect(() => {
+    if (teamProjects.length > 0) {
+      if (!teamProjects.some((p) => p.id === activeProjectId)) {
+        setActiveProjectId(teamProjects[0].id);
+      }
+    } else if (activeProjectId) {
+      setActiveProjectId('');
+    }
+  }, [teamProjects, activeProjectId]);
+
+  const projectMilestones = useMemo(() => {
+    if (!activeProject) return [];
+    return milestones
+      .filter((m) => m.project_id === activeProject.id)
+      .sort((a, b) => a.order_index - b.order_index);
+  }, [milestones, activeProject]);
+
+  const projectTasks = useMemo(() => {
+    if (!activeProject) return [];
+    return tasks.filter((t) => t.project_id === activeProject.id);
+  }, [tasks, activeProject]);
+
+  const projectDocs = useMemo(() => {
+    if (!activeProject) return [];
+    return documents.filter((d) => d.project_id === activeProject.id);
+  }, [documents, activeProject]);
+
+  const projectDocRequirements = useMemo(() => {
+    if (!activeProject) return [];
+    return docRequirements.filter((r) => r.project_id === activeProject.id);
+  }, [docRequirements, activeProject]);
+
+  const projectRevisions = useMemo(() => {
+    if (!activeProject) return [];
+    return revisionLogs.filter((r) => r.project_id === activeProject.id);
+  }, [revisionLogs, activeProject]);
 
   const filteredTasks = useMemo(() => {
     const q = filterState.searchQuery.trim().toLowerCase();
@@ -610,9 +657,11 @@ export const App: React.FC = () => {
   const handleSelectTeam = (teamId: string) => {
     setActiveTeamId(teamId);
     const targetTeam = teams.find((t) => t.id === teamId);
-    const projs = projects.filter((p) => !p.team_id || p.team_id === teamId);
-    if (projs.length > 0 && !projs.some((p) => p.id === activeProjectId)) {
+    const projs = projects.filter((p) => p.team_id === teamId);
+    if (projs.length > 0) {
       setActiveProjectId(projs[0].id);
+    } else {
+      setActiveProjectId('');
     }
     showToast(`Switched to ${targetTeam?.name || 'Team'}`);
   };
@@ -1045,7 +1094,9 @@ export const App: React.FC = () => {
     odooProjectId: number;
     autoPushToOdoo: boolean;
     avatarUrl?: string;
+    teamId?: string;
   }) => {
+    const assignedTeamId = payload.teamId || activeTeam.id;
     const result = instantiateProjectFromTemplateEngine({
       template: payload.template,
       projectName: payload.projectName,
@@ -1056,7 +1107,10 @@ export const App: React.FC = () => {
       odooBaseUrl,
       ownerId: currentUser.id,
       users,
+      teamId: assignedTeamId,
     });
+
+    result.project.team_id = assignedTeamId;
 
     if (payload.avatarUrl) {
       result.project.avatar_url = payload.avatarUrl;
@@ -1519,7 +1573,7 @@ export const App: React.FC = () => {
             activeSection={activeSection}
             onSelectSection={setActiveSection}
             projects={projects}
-            activeProjectId={activeProject.id}
+            activeProjectId={activeProject ? activeProject.id : ''}
             onSelectProject={setActiveProjectId}
             teams={teams}
             activeTeamId={activeTeamId}
@@ -1551,6 +1605,7 @@ export const App: React.FC = () => {
             <ProjectTopBar
               activeSection={activeSection}
               activeProject={activeProject}
+              activeTeam={activeTeam}
               currentUser={currentUser}
               filterState={filterState}
               onChangeFilter={setFilterState}
@@ -1668,7 +1723,7 @@ export const App: React.FC = () => {
 
               {activeSection === 'files' && (
                 <ProjectFilesView
-                  projects={projects}
+                  projects={teamProjects}
                   activeProject={activeProject}
                   onSelectProject={setActiveProjectId}
                   milestones={projectMilestones}
@@ -1709,71 +1764,93 @@ export const App: React.FC = () => {
               )}
 
               {activeSection === 'projects' && (
-                <>
-                  {displayState.viewMode === 'timeline' && (
-                    <TimelineView
-                      project={activeProject}
-                      milestones={filteredMilestones}
-                      tasks={filteredTasks}
-                      users={users}
-                      documents={projectDocs}
-                      docRequirements={projectDocRequirements}
-                      revisionLogs={projectRevisions}
-                      referenceTodayISO={REFERENCE_TODAY_ISO}
-                      showBaselineGhost={displayState.showBaseline}
-                      displayProperties={displayState.properties}
-                      onSelectMilestone={(ms) => {
-                        setSelectedTask(null);
-                        setSelectedMilestone(ms);
-                      }}
-                      onSelectTask={(task) => {
-                        setSelectedMilestone(null);
-                        setSelectedTask(task);
-                      }}
-                      onShiftMilestoneEnd={handleShiftMilestoneEnd}
-                      onShiftTaskEnd={handleShiftTaskEnd}
-                      onUpdateMilestoneIcon={handleUpdateMilestoneIcon}
-                      onUpdateTask={handleUpdateTask}
-                      onCommitBaseline={handleCommitBaseline}
-                      onAddTaskToMilestone={(msId) => handleOpenCreateTask(msId)}
-                    />
-                  )}
+                !activeProject ? (
+                  <div className="flex-1 flex flex-col items-center justify-center p-12 text-center max-w-md mx-auto my-16 bg-white border border-[#E6E8EE] rounded-2xl shadow-clean-xs">
+                    <div className="w-12 h-12 rounded-2xl bg-[#EEF3FB] text-[#0A4595] flex items-center justify-center text-[24px] mb-3">
+                      {activeTeam?.icon || '🏢'}
+                    </div>
+                    <h3 className="text-[17px] font-semibold text-[#121317]">
+                      No projects in {activeTeam?.name || 'this team'}
+                    </h3>
+                    <p className="text-[13px] text-[#6E717A] mt-1 mb-5">
+                      This team currently has no projects. Add a new project from a template or select another team.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setIsTemplateModalOpen(true)}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#0A4595] hover:bg-[#1264D4] text-white text-[13px] font-medium transition-colors shadow-clean-xs cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Create Project</span>
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    {displayState.viewMode === 'timeline' && (
+                      <TimelineView
+                        project={activeProject}
+                        milestones={filteredMilestones}
+                        tasks={filteredTasks}
+                        users={users}
+                        documents={projectDocs}
+                        docRequirements={projectDocRequirements}
+                        revisionLogs={projectRevisions}
+                        referenceTodayISO={REFERENCE_TODAY_ISO}
+                        showBaselineGhost={displayState.showBaseline}
+                        displayProperties={displayState.properties}
+                        onSelectMilestone={(ms) => {
+                          setSelectedTask(null);
+                          setSelectedMilestone(ms);
+                        }}
+                        onSelectTask={(task) => {
+                          setSelectedMilestone(null);
+                          setSelectedTask(task);
+                        }}
+                        onShiftMilestoneEnd={handleShiftMilestoneEnd}
+                        onShiftTaskEnd={handleShiftTaskEnd}
+                        onUpdateMilestoneIcon={handleUpdateMilestoneIcon}
+                        onUpdateTask={handleUpdateTask}
+                        onCommitBaseline={handleCommitBaseline}
+                        onAddTaskToMilestone={(msId) => handleOpenCreateTask(msId)}
+                      />
+                    )}
 
-                  {displayState.viewMode === 'board' && (
-                    <KanbanView
-                      milestones={filteredMilestones}
-                      tasks={filteredTasks}
-                      users={users}
-                      groupByMilestone={displayState.groupByMilestone}
-                      showEmptyColumns={displayState.showEmptyColumns}
-                      displayProperties={displayState.properties}
-                      onSelectTask={(task) => {
-                        setSelectedMilestone(null);
-                        setSelectedTask(task);
-                      }}
-                      onMoveTaskStatus={handleMoveTaskStatus}
-                      onCreateTaskQuick={handleCreateTaskQuick}
-                    />
-                  )}
+                    {displayState.viewMode === 'board' && (
+                      <KanbanView
+                        milestones={filteredMilestones}
+                        tasks={filteredTasks}
+                        users={users}
+                        groupByMilestone={displayState.groupByMilestone}
+                        showEmptyColumns={displayState.showEmptyColumns}
+                        displayProperties={displayState.properties}
+                        onSelectTask={(task) => {
+                          setSelectedMilestone(null);
+                          setSelectedTask(task);
+                        }}
+                        onMoveTaskStatus={handleMoveTaskStatus}
+                        onCreateTaskQuick={handleCreateTaskQuick}
+                      />
+                    )}
 
-                  {displayState.viewMode === 'list' && (
-                    <DocumentAndBaselineHub
-                      project={activeProject}
-                      milestones={filteredMilestones}
-                      tasks={filteredTasks}
-                      documents={projectDocs}
-                      revisionLogs={projectRevisions}
-                      onSelectMilestone={(ms) => {
-                        setSelectedTask(null);
-                        setSelectedMilestone(ms);
-                      }}
-                      onSelectTask={(task) => {
-                        setSelectedMilestone(null);
-                        setSelectedTask(task);
-                      }}
-                    />
-                  )}
-                </>
+                    {displayState.viewMode === 'list' && (
+                      <DocumentAndBaselineHub
+                        project={activeProject}
+                        milestones={filteredMilestones}
+                        tasks={filteredTasks}
+                        documents={projectDocs}
+                        revisionLogs={projectRevisions}
+                        onSelectMilestone={(ms) => {
+                          setSelectedTask(null);
+                          setSelectedMilestone(ms);
+                        }}
+                        onSelectTask={(task) => {
+                          setSelectedMilestone(null);
+                          setSelectedTask(task);
+                        }}
+                      />
+                    )}
+                  </>
+                )
               )}
             </main>
           </div>
@@ -1815,6 +1892,8 @@ export const App: React.FC = () => {
       <TemplateModal
         isOpen={isTemplateModalOpen}
         templates={templates}
+        teams={accessibleTeams}
+        activeTeamId={activeTeam.id}
         users={users}
         currentUser={currentUser}
         referenceTodayISO={REFERENCE_TODAY_ISO}
@@ -1823,46 +1902,53 @@ export const App: React.FC = () => {
       />
 
       {/* Edit / Delete Project Modal */}
-      <ProjectEditModal
-        isOpen={isEditProjectModalOpen}
-        project={activeProject}
-        milestones={projectMilestones}
-        totalProjectsCount={projects.length}
-        odooBaseUrl={odooBaseUrl}
-        canDeleteProject={isProjectCreator(activeProject, currentUser)}
-        onClose={() => setIsEditProjectModalOpen(false)}
-        onSaveProject={handleSaveProject}
-        onDeleteProject={handleDeleteProject}
-      />
+      {activeProject && (
+        <ProjectEditModal
+          isOpen={isEditProjectModalOpen}
+          project={activeProject}
+          milestones={projectMilestones}
+          teams={accessibleTeams}
+          totalProjectsCount={projects.length}
+          odooBaseUrl={odooBaseUrl}
+          canDeleteProject={isProjectCreator(activeProject, currentUser)}
+          onClose={() => setIsEditProjectModalOpen(false)}
+          onSaveProject={handleSaveProject}
+          onDeleteProject={handleDeleteProject}
+        />
+      )}
 
       {/* Project Share, Invite Link & Role Permissions Modal */}
-      <ProjectMembersModal
-        isOpen={isMembersModalOpen}
-        project={activeProject}
-        currentUser={currentUser}
-        directoryUsers={users}
-        onClose={() => setIsMembersModalOpen(false)}
-        onUpdateProjectMembers={handleUpdateProjectMembers}
-        onRegisterNewDirectoryUser={handleRegisterNewDirectoryUser}
-      />
+      {activeProject && (
+        <ProjectMembersModal
+          isOpen={isMembersModalOpen}
+          project={activeProject}
+          currentUser={currentUser}
+          directoryUsers={users}
+          onClose={() => setIsMembersModalOpen(false)}
+          onUpdateProjectMembers={handleUpdateProjectMembers}
+          onRegisterNewDirectoryUser={handleRegisterNewDirectoryUser}
+        />
+      )}
 
       {/* Create / Edit Project Task Modal */}
-      <TaskModal
-        isOpen={isTaskModalOpen}
-        task={editingTask}
-        defaultMilestoneId={taskModalMilestoneId}
-        project={activeProject}
-        milestones={projectMilestones}
-        users={users}
-        existingTasks={projectTasks}
-        odooBaseUrl={odooBaseUrl}
-        onClose={() => {
-          setIsTaskModalOpen(false);
-          setEditingTask(null);
-        }}
-        onSave={handleSaveTask}
-        onDelete={handleDeleteTask}
-      />
+      {activeProject && (
+        <TaskModal
+          isOpen={isTaskModalOpen}
+          task={editingTask}
+          defaultMilestoneId={taskModalMilestoneId}
+          project={activeProject}
+          milestones={projectMilestones}
+          users={users}
+          existingTasks={projectTasks}
+          odooBaseUrl={odooBaseUrl}
+          onClose={() => {
+            setIsTaskModalOpen(false);
+            setEditingTask(null);
+          }}
+          onSave={handleSaveTask}
+          onDelete={handleDeleteTask}
+        />
+      )}
 
       {/* Microsoft Teams (@logtechub.com) SSO Modal */}
       <TeamsAuthModal
