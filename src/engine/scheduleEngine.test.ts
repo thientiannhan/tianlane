@@ -25,6 +25,8 @@ import {
   canUserAccessTeam,
   canUserEditProject,
   canUserManageMembers,
+  getTaskAssigneeIds,
+  getTaskAssignees,
   getUserProjectRole,
   isProjectCreator,
   isUserAdmin,
@@ -364,4 +366,27 @@ const route63 = parseRoute('/project=63', '', '', SEED_PROJECTS, SEED_TEAMS);
 assert.equal(route63.section, 'projects');
 assert.equal(route63.rawProjectKey, '63');
 
-console.log('✓ All Tianlane scheduleEngine, RBAC, Multi-Team Access, R2 Presigner, Route Engine & Odoo AI Tags assertions passed.');
+// 18. Verify Multi-Assignee and Functional Roles (Assignee, BA, Developer, QC)
+const t01 = SEED_TASKS.find((t) => t.code === 'PL071026-T01')!;
+assert.ok(t01, 'Task PL071026-T01 must exist');
+const t01AssigneeIds = getTaskAssigneeIds(t01);
+assert.equal(t01AssigneeIds.length, 3, 'T01 must have 3 assigned members');
+assert.ok(t01AssigneeIds.includes('usr-kenny-thuong'), 'T01 must include Kenny Thuong');
+assert.ok(t01AssigneeIds.includes('usr-jasmine-thu'), 'T01 must include Jasmine Thu');
+assert.ok(t01AssigneeIds.includes('usr-po-01'), 'T01 must include James Nhan');
+
+const t01Resolved = getTaskAssignees(t01, SEED_USERS);
+assert.equal(t01Resolved.length, 3);
+const devMember = t01Resolved.find((r) => r.role === 'Developer');
+assert.ok(devMember, 'T01 must have a Developer');
+assert.equal(devMember.user.full_name, 'Kenny Thuong');
+
+const qcMember = t01Resolved.find((r) => r.role === 'QC');
+assert.ok(qcMember, 'T01 must have a QC');
+assert.equal(qcMember.user.full_name, 'Jasmine Thu');
+
+const baMember = t01Resolved.find((r) => r.role === 'BA');
+assert.ok(baMember, 'T01 must have a BA');
+assert.equal(baMember.user.full_name, 'James Nhan');
+
+console.log('✓ All Tianlane scheduleEngine, RBAC, Multi-Team Access, R2 Presigner, Route Engine, Odoo AI Tags & Multi-Assignees assertions passed.');

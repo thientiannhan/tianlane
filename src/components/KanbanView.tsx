@@ -6,6 +6,7 @@ import type {
   ProjectTask,
   UserProfile,
 } from '../types.ts';
+import { getTaskAssignees } from '../types.ts';
 import type { DisplayPropertyKey } from './ProjectHeaderControls.tsx';
 import { PriorityIconBadge } from './PriorityIconBadge.tsx';
 
@@ -66,7 +67,8 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
   };
 
   const renderTaskCard = (task: ProjectTask) => {
-    const assignee = users.find((u) => u.id === task.assignee_id);
+    const taskAssignees = getTaskAssignees(task, users);
+    const assignee = taskAssignees[0]?.user ?? users.find((u) => u.id === task.assignee_id);
     const doneChecks = task.checklist.filter((c) => c.done).length;
 
     return (
@@ -136,10 +138,44 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
 
         <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#E6E8EE] text-[12px] text-[#45474D] tabular-nums">
           <div className="flex items-center gap-2">
-            {displayProperties.lead && (
-              <span className="text-[#121317] font-medium">
-                {assignee?.avatar_initials ?? 'PO'}
-              </span>
+            {displayProperties.lead && taskAssignees.length > 0 && (
+              <div
+                className="flex items-center -space-x-1 shrink-0"
+                title={taskAssignees
+                  .map((a) => `${a.user.full_name} (${a.role})`)
+                  .join(' • ')}
+              >
+                {taskAssignees.slice(0, 2).map((item, idx) => {
+                  const roleBg =
+                    item.role === 'QC'
+                      ? 'bg-[#188038]'
+                      : item.role === 'Developer'
+                      ? 'bg-[#0A4595]'
+                      : item.role === 'BA'
+                      ? 'bg-[#7B1FA2]'
+                      : 'bg-[#1E293B]';
+                  return (
+                    <span
+                      key={`${item.user.id}-${idx}`}
+                      className={`w-5 h-5 rounded-full ${roleBg} text-white text-[9px] font-semibold inline-flex items-center justify-center ring-1 ring-white`}
+                      title={`${item.user.full_name} (${item.role})`}
+                    >
+                      {item.user.avatar_initials}
+                    </span>
+                  );
+                })}
+                {taskAssignees.length > 2 && (
+                  <span
+                    className="w-4.5 h-4.5 rounded-full bg-[#E6E8EE] text-[#45474D] text-[8.5px] font-semibold inline-flex items-center justify-center ring-1 ring-white"
+                    title={taskAssignees
+                      .slice(2)
+                      .map((a) => `${a.user.full_name} (${a.role})`)
+                      .join(', ')}
+                  >
+                    +{taskAssignees.length - 2}
+                  </span>
+                )}
+              </div>
             )}
             {displayProperties.checklist && task.checklist.length > 0 && (
               <span>

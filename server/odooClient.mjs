@@ -274,17 +274,57 @@ export async function syncOdooTasks(
         'kanban_state',
         'total_hours_spent',
         'tag_ids',
+        'user_ids',
+        'x_developer',
+        'x_qc',
       ],
       limit: 100,
       order: 'id desc',
     }
   );
 
+  // Collect all unique user IDs across assignees, developers, and QCs
+  const allUserIds = new Set();
+  for (const rec of odooRecords || []) {
+    if (Array.isArray(rec.user_ids)) rec.user_ids.forEach((uid) => allUserIds.add(uid));
+    if (Array.isArray(rec.x_developer)) rec.x_developer.forEach((uid) => allUserIds.add(uid));
+    if (Array.isArray(rec.x_qc)) rec.x_qc.forEach((uid) => allUserIds.add(uid));
+  }
+
+  const userMap = new Map();
+  if (allUserIds.size > 0) {
+    try {
+      const usersList = await executeKw(
+        session,
+        'res.users',
+        'search_read',
+        [[['id', 'in', Array.from(allUserIds)]]],
+        {
+          fields: ['id', 'name', 'login', 'email'],
+          limit: 100,
+        }
+      );
+      for (const u of usersList || []) {
+        userMap.set(u.id, {
+          id: u.id,
+          name: u.name,
+          login: u.login,
+          email: u.email || (u.login?.includes('@') ? u.login : `${u.login}@logtechub.com`),
+        });
+      }
+    } catch (err) {
+      console.warn('[OdooClient] User lookup error in syncOdooTasks:', err?.message || err);
+    }
+  }
+
   const byId = new Map();
   for (const rec of odooRecords || []) {
     const stageName = Array.isArray(rec.stage_id) ? rec.stage_id[1] : 'Backlog';
     const isAiCreated =
       Array.isArray(rec.tag_ids) && rec.tag_ids.includes(57);
+
+    const mapUser = (id) => userMap.get(id) || { id, name: `User #${id}`, login: String(id) };
+
     byId.set(Number(rec.id), {
       odoo_task_id: Number(rec.id),
       title: rec.name,
@@ -294,6 +334,11 @@ export async function syncOdooTasks(
       due_date: typeof rec.date_deadline === 'string' ? rec.date_deadline : null,
       odoo_task_url: `${session.url}/web#id=${rec.id}&model=project.task&view_type=form`,
       tags: isAiCreated ? ['AI-created'] : [],
+      odoo_users: {
+        assignees: Array.isArray(rec.user_ids) ? rec.user_ids.map(mapUser) : [],
+        developers: Array.isArray(rec.x_developer) ? rec.x_developer.map(mapUser) : [],
+        qcs: Array.isArray(rec.x_qc) ? rec.x_qc.map(mapUser) : [],
+      },
     });
   }
 

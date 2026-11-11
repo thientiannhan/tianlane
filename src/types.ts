@@ -83,6 +83,13 @@ export interface ProjectMilestone {
   is_closed?: boolean;
 }
 
+export type TaskRoleType = 'Assignee' | 'BA' | 'Developer' | 'QC';
+
+export interface TaskAssigneeInfo {
+  user_id: string;
+  role?: TaskRoleType;
+}
+
 export interface ProjectTask {
   id: string;
   project_id: string;
@@ -94,7 +101,9 @@ export interface ProjectTask {
   priority?: TaskPriority;
   is_completed: boolean;
   is_gate_blocker: boolean;
-  assignee_id: string;
+  assignee_id: string; // Primary / lead assignee for backward compatibility
+  assignee_ids?: string[]; // All assigned member IDs (Multi-Assignees)
+  assignee_roles?: TaskAssigneeInfo[]; // Per-member functional roles (Assignee, BA, Developer, QC)
   planned_start: string; // YYYY-MM-DD (Baseline)
   due_date: string; // YYYY-MM-DD (Baseline planned end)
   actual_start: string; // YYYY-MM-DD
@@ -300,4 +309,41 @@ export interface McpExecutionLog {
   status: 'pending_confirmation' | 'executed' | 'cancelled';
   affected_count: number;
   output_markdown: string;
+}
+
+export function getTaskAssigneeIds(task: ProjectTask): string[] {
+  if (Array.isArray(task.assignee_ids) && task.assignee_ids.length > 0) {
+    return Array.from(new Set(task.assignee_ids));
+  }
+  return task.assignee_id ? [task.assignee_id] : [];
+}
+
+export function getTaskAssignees(
+  task: ProjectTask,
+  users: UserProfile[]
+): { user: UserProfile; role: TaskRoleType }[] {
+  const ids = getTaskAssigneeIds(task);
+  const roleMap = new Map<string, TaskRoleType>();
+  if (Array.isArray(task.assignee_roles)) {
+    for (const r of task.assignee_roles) {
+      if (r.user_id && r.role) {
+        roleMap.set(r.user_id, r.role);
+      }
+    }
+  }
+
+  return ids
+    .map((uid) => {
+      const u = users.find((usr) => usr.id === uid);
+      if (!u) return null;
+      let role = roleMap.get(uid);
+      if (!role) {
+        if (u.role.includes('QA') || u.role.includes('QC')) role = 'QC';
+        else if (u.role.includes('Dev') || u.role.includes('Lead')) role = 'Developer';
+        else if (u.role.includes('Owner') || u.role.includes('PO') || u.role.includes('Analyst')) role = 'BA';
+        else role = 'Assignee';
+      }
+      return { user: u, role };
+    })
+    .filter(Boolean) as { user: UserProfile; role: TaskRoleType }[];
 }

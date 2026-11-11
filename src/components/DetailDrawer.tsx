@@ -5,9 +5,12 @@ import type {
   ProjectDocument,
   ProjectMilestone,
   ProjectTask,
+  TaskAssigneeInfo,
   TaskPriority,
+  TaskRoleType,
   UserProfile,
 } from '../types.ts';
+import { getTaskAssignees } from '../types.ts';
 import {
   canCloseMilestoneGate,
   validateAttachmentFileSize,
@@ -196,7 +199,7 @@ export const DetailDrawer: React.FC<DetailDrawerProps> = ({
         <div className="flex-1 overflow-y-auto p-6 space-y-6 text-[13.5px]">
           {selectedTask && (
             <>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[12px] text-[#45474D] mb-1">
                     Status
@@ -243,29 +246,149 @@ export const DetailDrawer: React.FC<DetailDrawerProps> = ({
                     <option value="high">High</option>
                   </select>
                 </div>
-
-                <div>
-                  <label className="block text-[12px] text-[#45474D] mb-1">
-                    Assignee
-                  </label>
-                  <select
-                    value={selectedTask.assignee_id}
-                    onChange={(e) =>
-                      onUpdateTask({
-                        ...selectedTask,
-                        assignee_id: e.target.value,
-                      })
-                    }
-                    className="w-full px-3 py-2 rounded-xl border border-[#E6E8EE] bg-white text-[13px] text-[#121317]"
-                  >
-                    {users.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.full_name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
               </div>
+
+              {/* Multi-Assignee & Functional Roles */}
+              {(() => {
+                const taskAssignees = getTaskAssignees(selectedTask, users);
+                const unassignedUsers = users.filter(
+                  (u) => !taskAssignees.some((ta) => ta.user.id === u.id)
+                );
+
+                const handleAddUser = (uid: string) => {
+                  if (!uid) return;
+                  const targetUser = users.find((u) => u.id === uid);
+                  let defRole: TaskRoleType = 'Assignee';
+                  if (targetUser) {
+                    if (targetUser.role.includes('QA') || targetUser.role.includes('QC')) defRole = 'QC';
+                    else if (targetUser.role.includes('Dev') || targetUser.role.includes('Lead')) defRole = 'Developer';
+                    else if (targetUser.role.includes('Owner') || targetUser.role.includes('PO') || targetUser.role.includes('Analyst')) defRole = 'BA';
+                  }
+                  const nextRoles = [
+                    ...taskAssignees.map((ta) => ({ user_id: ta.user.id, role: ta.role })),
+                    { user_id: uid, role: defRole },
+                  ];
+                  onUpdateTask({
+                    ...selectedTask,
+                    assignee_id: nextRoles[0].user_id,
+                    assignee_ids: nextRoles.map((r) => r.user_id),
+                    assignee_roles: nextRoles,
+                  });
+                };
+
+                const handleRemoveUser = (uid: string) => {
+                  if (taskAssignees.length <= 1) return;
+                  const nextRoles = taskAssignees
+                    .filter((ta) => ta.user.id !== uid)
+                    .map((ta) => ({ user_id: ta.user.id, role: ta.role }));
+                  onUpdateTask({
+                    ...selectedTask,
+                    assignee_id: nextRoles[0].user_id,
+                    assignee_ids: nextRoles.map((r) => r.user_id),
+                    assignee_roles: nextRoles,
+                  });
+                };
+
+                const handleChangeRole = (uid: string, newRole: TaskRoleType) => {
+                  const nextRoles = taskAssignees.map((ta) => ({
+                    user_id: ta.user.id,
+                    role: ta.user.id === uid ? newRole : ta.role,
+                  }));
+                  onUpdateTask({
+                    ...selectedTask,
+                    assignee_roles: nextRoles,
+                  });
+                };
+
+                return (
+                  <div className="p-3.5 rounded-2xl bg-[#F7F8FA] border border-[#E6E8EE] space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[12.5px] font-semibold text-[#121317] flex items-center gap-2">
+                        <span>Assignees &amp; Functional Roles</span>
+                        <span className="px-2 py-0.5 rounded-full bg-[#0A4595]/10 text-[#0A4595] text-[11px] font-semibold">
+                          {taskAssignees.length} members
+                        </span>
+                      </label>
+                      <span className="text-[11px] text-[#6E717A]">
+                        Assignee • BA • Dev • QC
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      {taskAssignees.map((item) => {
+                        const roleBadgeClass =
+                          item.role === 'QC'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : item.role === 'Developer'
+                            ? 'bg-blue-50 text-blue-700 border-blue-200'
+                            : item.role === 'BA'
+                            ? 'bg-purple-50 text-purple-700 border-purple-200'
+                            : 'bg-slate-100 text-slate-700 border-slate-200';
+                        return (
+                          <div
+                            key={item.user.id}
+                            className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-white border border-[#E6E8EE] shadow-clean-xs text-[12.5px]"
+                          >
+                            <span className="w-5 h-5 rounded-full bg-[#0A4595] text-white text-[9px] font-bold inline-flex items-center justify-center shrink-0">
+                              {item.user.avatar_initials}
+                            </span>
+                            <span className="font-medium text-[#121317]">
+                              {item.user.full_name}
+                            </span>
+                            <select
+                              value={item.role}
+                              onChange={(e) =>
+                                handleChangeRole(
+                                  item.user.id,
+                                  e.target.value as TaskRoleType
+                                )
+                              }
+                              className={`px-1.5 py-0.5 rounded text-[11px] font-semibold border ${roleBadgeClass} cursor-pointer focus:outline-none`}
+                            >
+                              <option value="Assignee">Assignee</option>
+                              <option value="BA">BA</option>
+                              <option value="Developer">Developer</option>
+                              <option value="QC">QC</option>
+                            </select>
+                            {taskAssignees.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveUser(item.user.id)}
+                                className="text-[#9CA3AF] hover:text-rose-600 transition-colors p-0.5"
+                                title="Remove member"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {unassignedUsers.length > 0 && (
+                      <div className="pt-1">
+                        <select
+                          defaultValue=""
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              handleAddUser(e.target.value);
+                              e.target.value = '';
+                            }
+                          }}
+                          className="px-3 py-1.5 rounded-xl border border-dashed border-[#B7BFD9] bg-white text-[12px] text-[#45474D] hover:border-[#0A4595] focus:outline-none transition-colors"
+                        >
+                          <option value="" disabled>+ Add Assignee, BA, QC, Developer...</option>
+                          {unassignedUsers.map((u) => (
+                            <option key={u.id} value={u.id}>
+                              {u.full_name} ({u.role})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               <label className="flex items-center justify-between p-3.5 rounded-xl border border-[#E6E8EE] bg-[#F7F8FA] cursor-pointer">
                 <div>

@@ -15,9 +15,12 @@ import type {
   Project,
   ProjectMilestone,
   ProjectTask,
+  TaskAssigneeInfo,
   TaskPriority,
+  TaskRoleType,
   UserProfile,
 } from '../types.ts';
+import { getTaskAssignees } from '../types.ts';
 import { mapKanbanToOdooStage } from '../engine/scheduleEngine.ts';
 
 interface TaskModalProps {
@@ -70,6 +73,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   const [kanbanStatus, setKanbanStatus] = useState<KanbanStatus>('todo');
   const [priority, setPriority] = useState<TaskPriority>('medium');
   const [assigneeId, setAssigneeId] = useState<string>('');
+  const [selectedAssignees, setSelectedAssignees] = useState<{ user_id: string; role: TaskRoleType }[]>([]);
   const [isGateBlocker, setIsGateBlocker] = useState<boolean>(false);
   const [plannedStart, setPlannedStart] = useState<string>('');
   const [dueDate, setDueDate] = useState<string>('');
@@ -90,7 +94,15 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       setDescription(task.description || '');
       setKanbanStatus(task.kanban_status);
       setPriority(task.priority || 'medium');
-      setAssigneeId(task.assignee_id || users[0]?.id || '');
+      const resolvedAssignees = getTaskAssignees(task, users);
+      if (resolvedAssignees.length > 0) {
+        setSelectedAssignees(resolvedAssignees.map((a) => ({ user_id: a.user.id, role: a.role })));
+        setAssigneeId(resolvedAssignees[0].user.id);
+      } else {
+        const fallbackId = task.assignee_id || users[0]?.id || '';
+        setSelectedAssignees([{ user_id: fallbackId, role: 'Assignee' }]);
+        setAssigneeId(fallbackId);
+      }
       setIsGateBlocker(Boolean(task.is_gate_blocker));
       setPlannedStart(task.planned_start || '');
       setDueDate(task.due_date || '');
@@ -113,7 +125,9 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       setDescription('');
       setKanbanStatus('todo');
       setPriority('medium');
-      setAssigneeId(users[0]?.id || '');
+      const defaultId = users[0]?.id || '';
+      setSelectedAssignees([{ user_id: defaultId, role: 'Assignee' }]);
+      setAssigneeId(defaultId);
       setIsGateBlocker(false);
       setPlannedStart(defaultStart);
       setDueDate(defaultEnd);
@@ -160,6 +174,34 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     setChecklist((prev) => prev.filter((c) => c.id !== chkId));
   };
 
+  const handleAddAssignee = (uid: string, defaultRole?: TaskRoleType) => {
+    if (!uid) return;
+    const targetUser = users.find((u) => u.id === uid);
+    let resolvedRole: TaskRoleType = defaultRole || 'Assignee';
+    if (!defaultRole && targetUser) {
+      if (targetUser.role.includes('QA') || targetUser.role.includes('QC')) resolvedRole = 'QC';
+      else if (targetUser.role.includes('Dev') || targetUser.role.includes('Lead')) resolvedRole = 'Developer';
+      else if (targetUser.role.includes('Owner') || targetUser.role.includes('PO') || targetUser.role.includes('Analyst')) resolvedRole = 'BA';
+    }
+    setSelectedAssignees((prev) => {
+      if (prev.some((a) => a.user_id === uid)) return prev;
+      return [...prev, { user_id: uid, role: resolvedRole }];
+    });
+  };
+
+  const handleRemoveAssignee = (uid: string) => {
+    setSelectedAssignees((prev) => {
+      if (prev.length <= 1) return prev;
+      return prev.filter((a) => a.user_id !== uid);
+    });
+  };
+
+  const handleChangeAssigneeRole = (uid: string, newRole: TaskRoleType) => {
+    setSelectedAssignees((prev) =>
+      prev.map((a) => (a.user_id === uid ? { ...a, role: newRole } : a))
+    );
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
@@ -173,6 +215,12 @@ export const TaskModal: React.FC<TaskModalProps> = ({
 
     const numericOdooId = odooTaskId.trim() ? parseInt(odooTaskId.trim(), 10) : null;
     const isCompleted = kanbanStatus === 'done';
+    const primaryAssigneeId = selectedAssignees[0]?.user_id || assigneeId || users[0]?.id || '';
+    const allAssigneeIds = selectedAssignees.map((a) => a.user_id);
+    const assigneeRoles: TaskAssigneeInfo[] = selectedAssignees.map((a) => ({
+      user_id: a.user_id,
+      role: a.role,
+    }));
 
     const savedTask: ProjectTask = {
       id: task?.id || `task-${Date.now()}`,
@@ -185,7 +233,9 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       priority,
       is_completed: isCompleted,
       is_gate_blocker: isGateBlocker,
-      assignee_id: assigneeId,
+      assignee_id: primaryAssigneeId,
+      assignee_ids: allAssigneeIds,
+      assignee_roles: assigneeRoles,
       planned_start: plannedStart || new Date().toISOString().slice(0, 10),
       due_date: dueDate || plannedStart || new Date().toISOString().slice(0, 10),
       actual_start: task?.actual_start || plannedStart,
@@ -317,25 +367,101 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             />
           </div>
 
-          {/* Row 4: Assignee, Status & Priority */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="space-y-1">
-              <label className="text-[12.5px] font-medium text-[#121317]">
-                Assignee
+          {/* Row 4: Multi-Assignee & Functional Roles (Assignee, BA, Developer, QC) */}
+          <div className="space-y-2.5 p-3.5 rounded-2xl bg-[#F7F8FA] border border-[#E6E8EE]">
+            <div className="flex items-center justify-between">
+              <label className="text-[12.5px] font-semibold text-[#121317] flex items-center gap-2">
+                <span>Assignees &amp; Functional Roles</span>
+                <span className="px-2 py-0.5 rounded-full bg-[#0A4595]/10 text-[#0A4595] text-[11px] font-semibold">
+                  {selectedAssignees.length} members
+                </span>
               </label>
-              <select
-                value={assigneeId}
-                onChange={(e) => setAssigneeId(e.target.value)}
-                className="w-full px-3.5 py-2 rounded-xl border border-[#E6E8EE] bg-white text-[13px] text-[#121317] hover:border-[#B7BFD9] focus:outline-none focus:border-[#0A4595] transition-colors"
-              >
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.full_name} ({u.role})
-                  </option>
-                ))}
-              </select>
+              <span className="text-[11.5px] text-[#6E717A]">
+                Matches Odoo: Assignee, BA, Dev, QC
+              </span>
             </div>
 
+            {/* List of currently assigned users */}
+            <div className="flex flex-wrap gap-2">
+              {selectedAssignees.map((item) => {
+                const u = users.find((usr) => usr.id === item.user_id);
+                if (!u) return null;
+                const roleBadgeClass =
+                  item.role === 'QC'
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : item.role === 'Developer'
+                    ? 'bg-blue-50 text-blue-700 border-blue-200'
+                    : item.role === 'BA'
+                    ? 'bg-purple-50 text-purple-700 border-purple-200'
+                    : 'bg-slate-100 text-slate-700 border-slate-200';
+                return (
+                  <div
+                    key={item.user_id}
+                    className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-white border border-[#E6E8EE] shadow-clean-xs text-[12.5px]"
+                  >
+                    <span className="w-5 h-5 rounded-full bg-[#0A4595] text-white text-[9px] font-bold inline-flex items-center justify-center shrink-0">
+                      {u.avatar_initials}
+                    </span>
+                    <span className="font-medium text-[#121317]">{u.full_name}</span>
+                    <select
+                      value={item.role}
+                      onChange={(e) =>
+                        handleChangeAssigneeRole(
+                          item.user_id,
+                          e.target.value as TaskRoleType
+                        )
+                      }
+                      className={`px-1.5 py-0.5 rounded text-[11px] font-semibold border ${roleBadgeClass} cursor-pointer focus:outline-none`}
+                    >
+                      <option value="Assignee">Assignee</option>
+                      <option value="BA">BA</option>
+                      <option value="Developer">Developer</option>
+                      <option value="QC">QC</option>
+                    </select>
+                    {selectedAssignees.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveAssignee(item.user_id)}
+                        className="text-[#9CA3AF] hover:text-rose-600 transition-colors p-0.5"
+                        title="Remove member"
+                        aria-label={`Remove ${u.full_name}`}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Quick Add Member Dropdown */}
+            {users.filter((u) => !selectedAssignees.some((sa) => sa.user_id === u.id)).length > 0 && (
+              <div className="flex items-center gap-2 pt-1">
+                <select
+                  defaultValue=""
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      handleAddAssignee(e.target.value);
+                      e.target.value = '';
+                    }
+                  }}
+                  className="px-3 py-1.5 rounded-xl border border-dashed border-[#B7BFD9] bg-white text-[12px] text-[#45474D] hover:border-[#0A4595] focus:outline-none transition-colors"
+                >
+                  <option value="" disabled>+ Add Assignee, BA, QC, Developer...</option>
+                  {users
+                    .filter((u) => !selectedAssignees.some((sa) => sa.user_id === u.id))
+                    .map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.full_name} ({u.role})
+                      </option>
+                    ))}
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* Row 4b: Kanban Status & Priority */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="text-[12.5px] font-medium text-[#121317]">
                 Kanban Status

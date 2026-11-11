@@ -17,6 +17,7 @@ import {
   type ProjectMilestone,
   type ProjectTask,
   type ProjectTemplate,
+  type TaskRoleType,
   type Team,
   type UserProfile,
 } from './types.ts';
@@ -1853,6 +1854,11 @@ export const App: React.FC = () => {
               effective_hours: number;
               odoo_task_url: string;
               tags?: string[];
+              odoo_users?: {
+                assignees?: { id: number; name: string; login: string; email?: string }[];
+                developers?: { id: number; name: string; login: string; email?: string }[];
+                qcs?: { id: number; name: string; login: string; email?: string }[];
+              };
             }
           >();
           for (const rec of data.records) {
@@ -1865,6 +1871,67 @@ export const App: React.FC = () => {
             const live = recordById.get(Number(t.odoo_task_id));
             if (!live) return t;
             updatedCount++;
+
+            let nextAssigneeIds = t.assignee_ids ? [...t.assignee_ids] : [t.assignee_id];
+            let nextAssigneeRoles = t.assignee_roles ? [...t.assignee_roles] : [];
+
+            if (live.odoo_users) {
+              const matchedAssignees: { user_id: string; role: TaskRoleType }[] = [];
+              const findTianlaneUser = (ou: { name?: string; login?: string; email?: string }) => {
+                const login = (ou.login || '').trim().toLowerCase();
+                const email = (ou.email || '').trim().toLowerCase();
+                const name = (ou.name || '').trim().toLowerCase();
+                return users.find((u) => {
+                  const uEmail = u.email.toLowerCase();
+                  const uName = u.full_name.toLowerCase();
+                  return (
+                    uEmail === email ||
+                    uEmail === login ||
+                    uEmail.startsWith(`${login}@`) ||
+                    u.id.toLowerCase().includes(login) ||
+                    uName === name
+                  );
+                });
+              };
+
+              // Map Developers
+              for (const ou of live.odoo_users.developers || []) {
+                const tu = findTianlaneUser(ou);
+                if (tu && !matchedAssignees.some((m) => m.user_id === tu.id)) {
+                  matchedAssignees.push({ user_id: tu.id, role: 'Developer' });
+                }
+              }
+
+              // Map QCs
+              for (const ou of live.odoo_users.qcs || []) {
+                const tu = findTianlaneUser(ou);
+                if (tu && !matchedAssignees.some((m) => m.user_id === tu.id)) {
+                  matchedAssignees.push({ user_id: tu.id, role: 'QC' });
+                }
+              }
+
+              // Map Assignees / BA
+              for (const ou of live.odoo_users.assignees || []) {
+                const tu = findTianlaneUser(ou);
+                if (tu && !matchedAssignees.some((m) => m.user_id === tu.id)) {
+                  const isBa =
+                    tu.role.includes('Owner') ||
+                    tu.role.includes('PO') ||
+                    tu.role.includes('Analyst') ||
+                    tu.role.includes('Lead');
+                  matchedAssignees.push({
+                    user_id: tu.id,
+                    role: isBa ? 'BA' : 'Assignee',
+                  });
+                }
+              }
+
+              if (matchedAssignees.length > 0) {
+                nextAssigneeIds = matchedAssignees.map((m) => m.user_id);
+                nextAssigneeRoles = matchedAssignees;
+              }
+            }
+
             return {
               ...t,
               kanban_status: live.kanban_status,
@@ -1873,6 +1940,9 @@ export const App: React.FC = () => {
               effective_hours: live.effective_hours || t.effective_hours,
               odoo_task_url: live.odoo_task_url || t.odoo_task_url,
               tags: live.tags?.length ? live.tags : t.tags,
+              assignee_id: nextAssigneeIds[0] || t.assignee_id,
+              assignee_ids: nextAssigneeIds,
+              assignee_roles: nextAssigneeRoles,
               last_synced_at: nowIso,
             };
           });

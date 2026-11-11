@@ -23,6 +23,7 @@ import type {
   TaskPriority,
   UserProfile,
 } from '../types.ts';
+import { getTaskAssignees } from '../types.ts';
 import type { DisplayPropertyKey } from './ProjectHeaderControls.tsx';
 import { PriorityIconBadge } from './PriorityIconBadge.tsx';
 import {
@@ -922,7 +923,9 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
                                 leftPx - swimlaneLeftPx
                               );
 
+                              const taskAssignees = getTaskAssignees(task, users);
                               const assignee =
+                                taskAssignees[0]?.user ??
                                 users.find((u) => u.id === task.assignee_id) ??
                                 users[0];
                               const priority: TaskPriority =
@@ -1112,25 +1115,52 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
                                         )}
                                     </div>
 
-                                    {displayProperties.lead && assignee && (
+                                    {displayProperties.lead && taskAssignees.length > 0 && (
                                       <div
                                         className="flex items-center -space-x-1.5 shrink-0"
-                                        title={`${assignee.full_name} (${assignee.role})`}
+                                        title={taskAssignees
+                                          .map((a) => `${a.user.full_name} (${a.role})`)
+                                          .join(' • ')}
                                       >
-                                        <div className="relative w-6 h-6 rounded-full bg-[#0A4595] text-white text-[10px] font-semibold flex items-center justify-center ring-2 ring-white">
-                                          {assignee.avatar_initials}
+                                        {taskAssignees.slice(0, 2).map((item, idx) => {
+                                          const roleBg =
+                                            item.role === 'QC'
+                                              ? 'bg-[#188038]'
+                                              : item.role === 'Developer'
+                                              ? 'bg-[#0A4595]'
+                                              : item.role === 'BA'
+                                              ? 'bg-[#7B1FA2]'
+                                              : 'bg-[#1E293B]';
+                                          return (
+                                            <div
+                                              key={`${item.user.id}-${idx}`}
+                                              className={`relative w-6 h-6 rounded-full ${roleBg} text-white text-[10px] font-semibold flex items-center justify-center ring-2 ring-white`}
+                                              title={`${item.user.full_name} (${item.role})`}
+                                            >
+                                              {item.user.avatar_initials}
+                                              <span
+                                                className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full ring-1 ring-white ${
+                                                  item.user.teams_status ===
+                                                  'available'
+                                                    ? 'bg-[#188038]'
+                                                    : 'bg-amber-500'
+                                                }`}
+                                              />
+                                            </div>
+                                          );
+                                        })}
+                                        {taskAssignees.length > 2 && (
                                           <span
-                                            className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full ring-1 ring-white ${
-                                              assignee.teams_status ===
-                                              'available'
-                                                ? 'bg-[#188038]'
-                                                : 'bg-amber-500'
-                                            }`}
-                                          />
-                                        </div>
-                                        {task.checklist.length > 1 && (
-                                          <span className="w-5 h-5 rounded-full bg-[#FCE8E6] text-[#C5221F] text-[9.5px] font-semibold flex items-center justify-center ring-2 ring-white tabular-nums">
-                                            +{task.checklist.length}
+                                            className="w-5 h-5 rounded-full bg-[#E6E8EE] text-[#45474D] text-[9.5px] font-semibold flex items-center justify-center ring-2 ring-white tabular-nums"
+                                            title={taskAssignees
+                                              .slice(2)
+                                              .map(
+                                                (a) =>
+                                                  `${a.user.full_name} (${a.role})`
+                                              )
+                                              .join(', ')}
+                                          >
+                                            +{taskAssignees.length - 2}
                                           </span>
                                         )}
                                       </div>
