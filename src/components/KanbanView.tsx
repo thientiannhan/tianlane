@@ -102,6 +102,11 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                 Gate
               </span>
             )}
+            {task.tags?.includes('AI-created') && (
+              <span className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 text-[10px] font-medium border border-purple-200">
+                AI-created
+              </span>
+            )}
           </div>
 
           {displayProperties.odoo_link &&

@@ -197,6 +197,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       effective_hours: task?.effective_hours || 0,
       last_synced_at: task?.last_synced_at || null,
       checklist,
+      tags: task?.tags ? task.tags : ['AI-created'],
     };
 
     onSave(savedTask);
@@ -222,6 +223,11 @@ export const TaskModal: React.FC<TaskModalProps> = ({
               <h2 className="text-[17px] font-semibold text-[#121317]">
                 {isEditing ? `Edit Task · ${task?.code}` : 'New Task'}
               </h2>
+              {(task?.tags?.includes('AI-created') || !isEditing) && (
+                <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+                  AI-created
+                </span>
+              )}
             </div>
             <p className="text-[12.5px] text-[#6E717A] mt-0.5">
               Hierarchy: {project.name} &gt; Milestone &gt; Task (Odoo Sync)

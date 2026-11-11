@@ -181,6 +181,7 @@ export async function testOdooConnection(conn = {}) {
 
 /**
  * Batch creates unlinked Tianlane tasks into Odoo `project.task` and returns new IDs & URLs.
+ * Automatically attaches the 'AI-created' tag (Tag ID 57 on Logistics TechHub).
  */
 export async function batchCreateOdooTasks(
   conn = {},
@@ -190,6 +191,25 @@ export async function batchCreateOdooTasks(
   const unlinked = tasks.filter((t) => !t.odoo_task_id);
   const created = [];
 
+  // Resolve or look up 'AI-created' tag ID (default 57 on support.logtechub.com)
+  let aiTagId = 57;
+  try {
+    const foundTags = await executeKw(session, 'project.tags', 'search_read', [
+      [['name', '=', 'AI-created']],
+      ['id', 'name'],
+    ]);
+    if (foundTags && foundTags.length > 0) {
+      aiTagId = Number(foundTags[0].id);
+    } else {
+      const newTagId = await executeKw(session, 'project.tags', 'create', [
+        { name: 'AI-created', color: 11 },
+      ]);
+      if (newTagId) aiTagId = Number(newTagId);
+    }
+  } catch (err) {
+    console.warn('[OdooClient] Tag search error, fallback to 57:', err?.message || err);
+  }
+
   for (const task of unlinked) {
     const newId = await executeKw(session, 'project.task', 'create', [
       {
@@ -198,6 +218,7 @@ export async function batchCreateOdooTasks(
         description: task.description || `Created by Tianlane PO Governance (${task.code})`,
         date_deadline: task.actual_end || task.due_date || false,
         priority: task.priority === 'high' ? '1' : '0',
+        tag_ids: [[4, aiTagId, 0]],
       },
     ]);
 
@@ -207,6 +228,7 @@ export async function batchCreateOdooTasks(
       odoo_task_id: Number(newId),
       odoo_task_url: `${session.url}/web#id=${newId}&model=project.task&view_type=form`,
       odoo_stage_name: 'Backlog',
+      tags: ['AI-created'],
     });
   }
 
@@ -251,6 +273,7 @@ export async function syncOdooTasks(
         'priority',
         'kanban_state',
         'total_hours_spent',
+        'tag_ids',
       ],
       limit: 100,
       order: 'id desc',
@@ -260,6 +283,8 @@ export async function syncOdooTasks(
   const byId = new Map();
   for (const rec of odooRecords || []) {
     const stageName = Array.isArray(rec.stage_id) ? rec.stage_id[1] : 'Backlog';
+    const isAiCreated =
+      Array.isArray(rec.tag_ids) && rec.tag_ids.includes(57);
     byId.set(Number(rec.id), {
       odoo_task_id: Number(rec.id),
       title: rec.name,
@@ -268,6 +293,7 @@ export async function syncOdooTasks(
       effective_hours: Number(rec.total_hours_spent || 0),
       due_date: typeof rec.date_deadline === 'string' ? rec.date_deadline : null,
       odoo_task_url: `${session.url}/web#id=${rec.id}&model=project.task&view_type=form`,
+      tags: isAiCreated ? ['AI-created'] : [],
     });
   }
 

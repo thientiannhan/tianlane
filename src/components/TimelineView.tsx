@@ -959,8 +959,13 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
                                         aria-hidden="true"
                                       />
                                       <div className="min-w-0">
-                                        <div className="text-[13.5px] font-medium text-[#121317] truncate">
-                                          {task.title}
+                                        <div className="text-[13.5px] font-medium text-[#121317] truncate flex items-center gap-1.5">
+                                          <span className="truncate">{task.title}</span>
+                                          {task.tags?.includes('AI-created') && (
+                                            <span className="shrink-0 px-1 py-0.2 rounded bg-purple-50 text-purple-700 text-[9.5px] font-medium border border-purple-200">
+                                              AI
+                                            </span>
+                                          )}
                                         </div>
                                         {displayProperties.target_date && (
                                           <div className="flex items-center gap-1.5 text-[11.5px] text-[#6E717A] tabular-nums mt-0.5">

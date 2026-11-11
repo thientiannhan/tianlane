@@ -9,6 +9,7 @@ import {
   mapOdooStageToKanban,
   validateAttachmentFileSize,
 } from './scheduleEngine.ts';
+import { parseRoute, buildRouteUrl } from './routeEngine.ts';
 import {
   authenticateLogtechubUser,
   SEED_MILESTONES,
@@ -291,4 +292,59 @@ const remainingTasksAfterDelete = SEED_TASKS.filter((t) => !rndProjIds.has(t.pro
 assert.ok(remainingMilestonesAfterDelete.length < SEED_MILESTONES.length);
 assert.ok(remainingTasksAfterDelete.length < SEED_TASKS.length);
 
-console.log('✓ All Tianlane scheduleEngine, RBAC, Multi-Team Access, R2 Presigner & Odoo MCP assertions passed.');
+// 14. Test Route Engine (/project=16, /team, /files, /agent, ?task=12149)
+const plProject = SEED_PROJECTS.find((p) => p.odoo_project_id === 16)!;
+assert.ok(plProject, 'Project with odoo_project_id = 16 must exist');
+assert.equal(plProject.code, 'PL071026');
+assert.equal(plProject.team_id, 'team-efms');
+
+// Dynamic route parsing
+const route16 = parseRoute('/project=16', '', '', SEED_PROJECTS, SEED_TEAMS);
+assert.equal(route16.section, 'projects');
+assert.equal(route16.projectId, plProject.id);
+assert.equal(route16.teamId, 'team-efms');
+
+const route16Encoded = parseRoute('/project%3D16', '', '', SEED_PROJECTS, SEED_TEAMS);
+assert.equal(route16Encoded.projectId, plProject.id);
+
+const route16Slash = parseRoute('/project/16', '', '', SEED_PROJECTS, SEED_TEAMS);
+assert.equal(route16Slash.projectId, plProject.id);
+
+const route16Query = parseRoute('/', '?project=16', '', SEED_PROJECTS, SEED_TEAMS);
+assert.equal(route16Query.projectId, plProject.id);
+
+const route16Files = parseRoute('/project=16/files', '', '', SEED_PROJECTS, SEED_TEAMS);
+assert.equal(route16Files.section, 'files');
+assert.equal(route16Files.projectId, plProject.id);
+
+const routeTeam = parseRoute('/team', '', '', SEED_PROJECTS, SEED_TEAMS);
+assert.equal(routeTeam.section, 'team');
+
+const routeTask = parseRoute('/project=16', '?task=12149&view=board', '', SEED_PROJECTS, SEED_TEAMS);
+assert.equal(routeTask.taskId, '12149');
+assert.equal(routeTask.viewMode, 'board');
+
+// URL construction
+const url16Timeline = buildRouteUrl({ section: 'projects', project: plProject, viewMode: 'timeline' });
+assert.equal(url16Timeline, '/project=16', 'Timeline view for project 16 must build /project=16');
+
+const url16Board = buildRouteUrl({ section: 'projects', project: plProject, viewMode: 'board' });
+assert.equal(url16Board, '/project=16?view=board');
+
+const plTask12149 = SEED_TASKS.find((t) => t.odoo_task_id === 12149)!;
+assert.ok(plTask12149, 'Task with odoo_task_id = 12149 must exist');
+const url16WithTask = buildRouteUrl({ section: 'projects', project: plProject, viewMode: 'timeline', task: plTask12149 });
+assert.equal(url16WithTask, '/project=16?task=12149');
+
+const urlTeam = buildRouteUrl({ section: 'team' });
+assert.equal(urlTeam, '/team');
+
+// 15. Verify AI-created tags on project PL071026 tasks
+const plTasks = SEED_TASKS.filter((t) => t.project_id === plProject.id);
+assert.equal(plTasks.length, 9, 'Project PL071026 must have 9 tasks');
+for (const task of plTasks) {
+  assert.ok(Array.isArray(task.tags), `Task ${task.code} must have tags array`);
+  assert.ok(task.tags.includes('AI-created'), `Task ${task.code} must include 'AI-created' tag`);
+}
+
+console.log('✓ All Tianlane scheduleEngine, RBAC, Multi-Team Access, R2 Presigner, Route Engine & Odoo AI Tags assertions passed.');

@@ -41,6 +41,7 @@ import {
   instantiateProjectFromTemplateEngine,
   mapKanbanToOdooStage,
 } from './engine/scheduleEngine.ts';
+import { parseRoute, buildRouteUrl } from './engine/routeEngine.ts';
 import { LandingPage } from './components/LandingPage.tsx';
 import { TimelineView } from './components/TimelineView.tsx';
 import { KanbanView } from './components/KanbanView.tsx';
@@ -290,8 +291,21 @@ export const App: React.FC = () => {
     return SEED_TEAMS.filter((t) => !deletedIds.has(t.id));
   });
 
+  // Initial route parse from window.location (e.g. /project=16, ?project=16, /team)
+  const initialRoute = useMemo(() => {
+    if (typeof window === 'undefined') return null;
+    return parseRoute(
+      window.location.pathname,
+      window.location.search,
+      window.location.hash,
+      SEED_PROJECTS,
+      SEED_TEAMS
+    );
+  }, []);
+
   const [activeTeamId, setActiveTeamId] = useState<string>(() => {
-    return SEED_TEAMS[0].id;
+    if (initialRoute?.teamId) return initialRoute.teamId;
+    return localStorage.getItem('tianlane_active_team') || SEED_TEAMS[0].id;
   });
 
   const [isUserProfileOpen, setIsUserProfileOpen] = useState<boolean>(false);
@@ -313,9 +327,11 @@ export const App: React.FC = () => {
     return !localStorage.getItem(AUTH_STORAGE_KEY);
   });
 
-  const [activeSection, setActiveSection] = useState<SidebarSection>('projects');
+  const [activeSection, setActiveSection] = useState<SidebarSection>(
+    () => initialRoute?.section ?? 'projects'
+  );
   const [activeProjectId, setActiveProjectId] = useState<string>(
-    () => projects[0]?.id ?? SEED_PROJECTS[0].id
+    () => initialRoute?.projectId ?? projects[0]?.id ?? SEED_PROJECTS[0].id
   );
   const [workspaceOpen, setWorkspaceOpen] = useState<boolean>(true);
   const [teamsOpen, setTeamsOpen] = useState<boolean>(true);
@@ -330,7 +346,7 @@ export const App: React.FC = () => {
   });
 
   const [displayState, setDisplayState] = useState<ProjectDisplayState>({
-    viewMode: 'timeline',
+    viewMode: initialRoute?.viewMode ?? 'timeline',
     groupByMilestone: true,
     ordering: 'manual',
     showBaseline: true,
@@ -381,12 +397,25 @@ export const App: React.FC = () => {
   const isCloudHydratedRef = useRef<boolean>(false);
   const skipNextCloudSaveRef = useRef<boolean>(false);
 
-  // Open Microsoft Teams SSO modal automatically if arriving via invite link while signed out
+  // Open Microsoft Teams SSO modal automatically if arriving via invite link or project deep link while signed out
   useEffect(() => {
-    if (pendingInvite && showLandingPage) {
+    if ((pendingInvite || initialRoute?.rawProjectKey) && showLandingPage) {
       setIsAuthModalOpen(true);
     }
-  }, [pendingInvite, showLandingPage]);
+  }, [pendingInvite, initialRoute, showLandingPage]);
+
+  // Select task from initial URL if specified (?task=...)
+  useEffect(() => {
+    if (initialRoute?.taskId && tasks.length > 0) {
+      const found = tasks.find(
+        (t) =>
+          t.id === initialRoute.taskId ||
+          String(t.odoo_task_id) === initialRoute.taskId ||
+          t.code.toLowerCase() === initialRoute.taskId!.toLowerCase()
+      );
+      if (found) setSelectedTask(found);
+    }
+  }, [initialRoute, tasks]);
 
   // Hydrate multi-user workspace state from Neon PostgreSQL on startup
   useEffect(() => {
@@ -578,6 +607,16 @@ export const App: React.FC = () => {
     );
   }, [teamProjects, activeProjectId]);
 
+  // Synchronize activeProjectId & activeTeamId across teams
+  useEffect(() => {
+    if (!activeProjectId) return;
+    const target = projects.find((p) => p.id === activeProjectId);
+    if (target && target.team_id !== activeTeamId) {
+      setActiveTeamId(target.team_id);
+      localStorage.setItem('tianlane_active_team', target.team_id);
+    }
+  }, [activeProjectId, projects, activeTeamId]);
+
   // Synchronize activeProjectId with activeTeam's projects
   useEffect(() => {
     if (teamProjects.length > 0) {
@@ -588,6 +627,84 @@ export const App: React.FC = () => {
       setActiveProjectId('');
     }
   }, [teamProjects, activeProjectId]);
+
+  // Synchronize browser address bar with current workspace route
+  useEffect(() => {
+    if (typeof window === 'undefined' || showLandingPage) return;
+
+    const targetUrl = buildRouteUrl({
+      section: activeSection,
+      project: activeProject,
+      viewMode: displayState.viewMode,
+      task: selectedTask,
+    });
+
+    const currentUrl =
+      window.location.pathname + window.location.search + window.location.hash;
+
+    if (decodeURIComponent(currentUrl) !== decodeURIComponent(targetUrl)) {
+      window.history.pushState(
+        { section: activeSection, projectId: activeProjectId },
+        '',
+        targetUrl
+      );
+    }
+  }, [
+    showLandingPage,
+    activeSection,
+    activeProject,
+    activeProjectId,
+    displayState.viewMode,
+    selectedTask,
+  ]);
+
+  // Handle browser Back / Forward (popstate)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handlePopState = () => {
+      const parsed = parseRoute(
+        window.location.pathname,
+        window.location.search,
+        window.location.hash,
+        projects,
+        teams
+      );
+      if (parsed.section) setActiveSection(parsed.section);
+      if (parsed.teamId) {
+        setActiveTeamId(parsed.teamId);
+        localStorage.setItem('tianlane_active_team', parsed.teamId);
+      }
+      if (parsed.projectId) {
+        setActiveProjectId(parsed.projectId);
+      }
+      if (parsed.viewMode) {
+        setDisplayState((prev) => ({ ...prev, viewMode: parsed.viewMode! }));
+      }
+      if (parsed.taskId) {
+        const foundTask = tasks.find(
+          (t) =>
+            t.id === parsed.taskId ||
+            String(t.odoo_task_id) === parsed.taskId ||
+            t.code.toLowerCase() === parsed.taskId!.toLowerCase()
+        );
+        if (foundTask) setSelectedTask(foundTask);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [projects, teams, tasks]);
+
+  const handleSelectProject = (projectId: string) => {
+    const target = projects.find((p) => p.id === projectId);
+    if (target && target.team_id !== activeTeamId) {
+      setActiveTeamId(target.team_id);
+      localStorage.setItem('tianlane_active_team', target.team_id);
+    }
+    setActiveProjectId(projectId);
+    setActiveSection('projects');
+  };
 
   const projectMilestones = useMemo(() => {
     if (!activeProject) return [];
@@ -1545,6 +1662,7 @@ export const App: React.FC = () => {
               odoo_task_id: number;
               odoo_task_url: string;
               odoo_stage_name: string;
+              tags?: string[];
             }
           >();
           for (const item of data.created) {
@@ -1560,6 +1678,7 @@ export const App: React.FC = () => {
                 odoo_task_id: hit.odoo_task_id,
                 odoo_task_url: hit.odoo_task_url,
                 odoo_stage_name: hit.odoo_stage_name,
+                tags: hit.tags || ['AI-created'],
                 last_synced_at: nowIso,
               };
             })
@@ -1585,6 +1704,7 @@ export const App: React.FC = () => {
           odoo_task_id: newOdooId,
           odoo_task_url: `${odooBaseUrl}/web#id=${newOdooId}&model=project.task&view_type=form`,
           odoo_stage_name: mapKanbanToOdooStage(t.kanban_status),
+          tags: t.tags?.length ? t.tags : ['AI-created'],
           last_synced_at: new Date().toISOString(),
         };
       }
@@ -1627,6 +1747,7 @@ export const App: React.FC = () => {
               kanban_status: KanbanStatus;
               effective_hours: number;
               odoo_task_url: string;
+              tags?: string[];
             }
           >();
           for (const rec of data.records) {
@@ -1646,6 +1767,7 @@ export const App: React.FC = () => {
               odoo_stage_name: live.odoo_stage_name,
               effective_hours: live.effective_hours || t.effective_hours,
               odoo_task_url: live.odoo_task_url || t.odoo_task_url,
+              tags: live.tags?.length ? live.tags : t.tags,
               last_synced_at: nowIso,
             };
           });
@@ -1749,7 +1871,7 @@ export const App: React.FC = () => {
             onSelectSection={setActiveSection}
             projects={projects}
             activeProjectId={activeProject ? activeProject.id : ''}
-            onSelectProject={setActiveProjectId}
+            onSelectProject={handleSelectProject}
             teams={teams}
             activeTeamId={activeTeamId}
             onSelectTeam={handleSelectTeam}
@@ -1902,7 +2024,7 @@ export const App: React.FC = () => {
                 <ProjectFilesView
                   projects={teamProjects}
                   activeProject={activeProject}
-                  onSelectProject={setActiveProjectId}
+                  onSelectProject={handleSelectProject}
                   milestones={projectMilestones}
                   tasks={projectTasks}
                   documents={documents}

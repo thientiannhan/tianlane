@@ -106,6 +106,7 @@ export interface ProjectTask {
   effective_hours: number;
   last_synced_at: string | null;
   checklist: ChecklistItem[];
+  tags?: string[];
 }
 
 export interface ProjectDocument {

@@ -168,8 +168,15 @@ export const DetailDrawer: React.FC<DetailDrawerProps> = ({
       <div className="w-full max-w-lg bg-white h-full border-l border-[#E6E8EE] shadow-clean-lg flex flex-col">
         <div className="px-6 py-4 border-b border-[#E6E8EE] flex items-center justify-between">
           <div>
-            <div className="text-[12px] font-mono text-[#45474D] tabular-nums">
-              {selectedTask ? selectedTask.code : activeMilestone?.code}
+            <div className="flex items-center gap-2">
+              <span className="text-[12px] font-mono text-[#45474D] tabular-nums">
+                {selectedTask ? selectedTask.code : activeMilestone?.code}
+              </span>
+              {selectedTask?.tags?.includes('AI-created') && (
+                <span className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 text-[10.5px] font-medium border border-purple-200">
+                  AI-created
+                </span>
+              )}
             </div>
             <h2 className="text-[16px] font-medium text-[#121317] mt-0.5 line-clamp-1">
               {selectedTask ? selectedTask.title : activeMilestone?.title}
@@ -297,6 +304,11 @@ export const DetailDrawer: React.FC<DetailDrawerProps> = ({
                       <span>Open Tracker #{selectedTask.odoo_task_id}</span>
                       <ExternalLink className="w-3 h-3" aria-hidden="true" />
                     </a>
+                  )}
+                  {selectedTask.tags?.includes('AI-created') && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 text-[11px] font-medium">
+                      Tag: AI-created (Odoo #57)
+                    </span>
                   )}
                 </div>
 

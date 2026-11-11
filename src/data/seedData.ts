@@ -1441,6 +1441,7 @@ export const SEED_TASKS: ProjectTask[] = [
     odoo_stage_name: 'Planning',
     effective_hours: 12,
     last_synced_at: '2026-11-11T12:00:00Z',
+    tags: ['AI-created'],
     checklist: [
       { id: 'c-pl-1-1', label: 'Tự động sync Salesman từ master sang VAS', done: false },
       { id: 'c-pl-1-2', label: 'Khóa trường Salesman trên VAS khi liên kết', done: false },
@@ -1467,6 +1468,7 @@ export const SEED_TASKS: ProjectTask[] = [
     odoo_stage_name: 'Planning',
     effective_hours: 8,
     last_synced_at: '2026-11-11T12:00:00Z',
+    tags: ['AI-created'],
     checklist: [
       { id: 'c-pl-2-1', label: 'Bổ sung cột MBL No, Route, Vehicle No trên form SOA', done: false },
       { id: 'c-pl-2-2', label: 'Cập nhật file export Excel / PDF SOA', done: false },
@@ -1493,6 +1495,7 @@ export const SEED_TASKS: ProjectTask[] = [
     odoo_stage_name: 'Planning',
     effective_hours: 16,
     last_synced_at: '2026-11-11T12:00:00Z',
+    tags: ['AI-created'],
     checklist: [
       { id: 'c-pl-3-1', label: 'Option e-Manifest trong menu Preview', done: true },
       { id: 'c-pl-3-2', label: 'Xử lý multi-HBL payload & format e-Manifest', done: false },
@@ -1519,6 +1522,7 @@ export const SEED_TASKS: ProjectTask[] = [
     odoo_stage_name: 'Planning',
     effective_hours: 10,
     last_synced_at: '2026-11-11T12:00:00Z',
+    tags: ['AI-created'],
     checklist: [
       { id: 'c-pl-4-1', label: 'Form Local-Exc đính kèm tự động', done: false },
       { id: 'c-pl-4-2', label: 'Dropdown chọn Template file khi gửi email', done: false },
@@ -1545,6 +1549,7 @@ export const SEED_TASKS: ProjectTask[] = [
     odoo_stage_name: 'Planning',
     effective_hours: 12,
     last_synced_at: '2026-11-11T12:00:00Z',
+    tags: ['AI-created'],
     checklist: [
       { id: 'c-pl-5-1', label: 'Lấy email từ Partner setting', done: false },
       { id: 'c-pl-5-2', label: 'Cho phép CS override email billing trên màn hình', done: false },
@@ -1571,6 +1576,7 @@ export const SEED_TASKS: ProjectTask[] = [
     odoo_stage_name: 'Planning',
     effective_hours: 24,
     last_synced_at: '2026-11-11T12:00:00Z',
+    tags: ['AI-created'],
     checklist: [
       { id: 'c-pl-6-1', label: 'Thêm field Billing Period Date trên phí selling/OBH', done: false },
       { id: 'c-pl-6-2', label: 'Ràng buộc nhập ngày sau cut-off ngày 8', done: false },
@@ -1598,6 +1604,7 @@ export const SEED_TASKS: ProjectTask[] = [
     odoo_stage_name: 'Planning',
     effective_hours: 14,
     last_synced_at: '2026-11-11T12:00:00Z',
+    tags: ['AI-created'],
     checklist: [
       { id: 'c-pl-7-1', label: 'Cấu hình requirement fields ma trận 6 service', done: false },
       { id: 'c-pl-7-2', label: 'Validation chặn lưu thiếu thông tin bắt buộc', done: false },
@@ -1624,6 +1631,7 @@ export const SEED_TASKS: ProjectTask[] = [
     odoo_stage_name: 'Ready for Testing',
     effective_hours: 18,
     last_synced_at: '2026-11-11T12:00:00Z',
+    tags: ['AI-created'],
     checklist: [
       { id: 'c-pl-8-1', label: 'Chuyển field Comment sang single picklist từ bảng catUnlockReason', done: true },
       { id: 'c-pl-8-2', label: 'Enable comment khi stage trạng thái Done', done: true },
@@ -1651,6 +1659,7 @@ export const SEED_TASKS: ProjectTask[] = [
     odoo_stage_name: 'Planning',
     effective_hours: 12,
     last_synced_at: '2026-11-11T12:00:00Z',
+    tags: ['AI-created'],
     checklist: [
       { id: 'c-pl-9-1', label: 'Kiểm tra tổng Advance Amount + Current Cost', done: false },
       { id: 'c-pl-9-2', label: 'Alert chặn form khi vượt Total Selling Rate', done: false },
