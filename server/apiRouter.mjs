@@ -1,8 +1,20 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { createR2PresignedPutUrl } from './r2Presign.mjs';
+
+export const AUTH_SALT = 'tianlane-logtechub-auth-salt-v1';
+
+export function hashPassword(password) {
+  if (!password) return null;
+  const clean = String(password).trim();
+  if (/^[a-f0-9]{64}$/i.test(clean)) {
+    return clean.toLowerCase();
+  }
+  return crypto.createHash('sha256').update(`${AUTH_SALT}:${clean}`).digest('hex');
+}
 import {
   DEFAULT_ODOO_CONNECTION,
   batchCreateOdooTasks,
@@ -270,7 +282,7 @@ export async function handleApiAndHealthRequest(req, res) {
       const rawIdentifier = String(body.email || body.identifier || '')
         .trim()
         .toLowerCase();
-      const rawPassword = String(body.password || '').trim();
+      const inputHash = hashPassword(body.password_hash || body.password);
 
       if (!rawIdentifier) {
         sendJson(
@@ -385,19 +397,30 @@ export async function handleApiAndHealthRequest(req, res) {
       }
 
       const pool = await getDbPool();
-      let customPassword = null;
       let dbUserRow = null;
+      let dbPasswordHash = null;
 
       if (pool) {
         try {
+          await pool.query(`
+            ALTER TABLE users_directory ADD COLUMN IF NOT EXISTS password_hash TEXT;
+          `);
           const checkRes = await pool.query(
-            `SELECT custom_password, full_name, avatar_initials, avatar_url, role, is_admin
+            `SELECT password_hash, custom_password, full_name, avatar_initials, avatar_url, role, is_admin
              FROM users_directory WHERE email = $1 LIMIT 1`,
             [normalizedEmail]
           );
           if (checkRes.rows.length > 0) {
             dbUserRow = checkRes.rows[0];
-            customPassword = dbUserRow.custom_password || null;
+            dbPasswordHash = dbUserRow.password_hash || null;
+            // Transparently migrate legacy custom_password to password_hash
+            if (!dbPasswordHash && dbUserRow.custom_password) {
+              dbPasswordHash = hashPassword(dbUserRow.custom_password);
+              pool.query(
+                'UPDATE users_directory SET password_hash = $1, custom_password = NULL WHERE email = $2',
+                [dbPasswordHash, normalizedEmail]
+              ).catch(() => {});
+            }
           }
         } catch {
           // Fallback if column not yet added
@@ -405,13 +428,13 @@ export async function handleApiAndHealthRequest(req, res) {
       }
 
       const currentYear = new Date().getFullYear();
-      const expectedCurrent = `${username}${currentYear}`;
-      const expected2026 = `${username}2026`;
+      const expectedCurrentHash = hashPassword(`${username}${currentYear}`);
+      const expected2026Hash = hashPassword(`${username}2026`);
 
       const isMatch =
-        (Boolean(customPassword) && rawPassword === customPassword) ||
-        rawPassword === expectedCurrent ||
-        rawPassword === expected2026;
+        (Boolean(dbPasswordHash) && inputHash === dbPasswordHash) ||
+        inputHash === expectedCurrentHash ||
+        inputHash === expected2026Hash;
 
       if (!isMatch) {
         sendJson(
@@ -495,7 +518,7 @@ export async function handleApiAndHealthRequest(req, res) {
       const pool = await getDbPool();
       if (pool) {
         await pool.query(`
-          ALTER TABLE users_directory ADD COLUMN IF NOT EXISTS custom_password TEXT;
+          ALTER TABLE users_directory ADD COLUMN IF NOT EXISTS password_hash TEXT;
           ALTER TABLE users_directory ADD COLUMN IF NOT EXISTS avatar_url TEXT;
           ALTER TABLE users_directory ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE;
         `);
@@ -523,10 +546,13 @@ export async function handleApiAndHealthRequest(req, res) {
           values.push(Boolean(body.isAdmin));
         }
         if (body.resetPassword) {
-          updates.push(`custom_password = NULL`);
+          updates.push(`password_hash = NULL, custom_password = NULL`);
+        } else if (body.password_hash) {
+          updates.push(`password_hash = $${idx++}, custom_password = NULL`);
+          values.push(hashPassword(body.password_hash));
         } else if (body.newPassword) {
-          updates.push(`custom_password = $${idx++}`);
-          values.push(body.newPassword.trim());
+          updates.push(`password_hash = $${idx++}, custom_password = NULL`);
+          values.push(hashPassword(body.newPassword));
         }
         if (updates.length > 0) {
           await pool.query(

@@ -54,7 +54,7 @@ export const TeamsAuthModal: React.FC<TeamsAuthModalProps> = ({
     e.preventDefault();
     setErrorMsg(null);
 
-    const localCheck = authenticateLogtechubUser(identifier, password, users);
+    const localCheck = await authenticateLogtechubUser(identifier, password, users);
     if (!localCheck.ok) {
       setErrorMsg(localCheck.error);
       return;
@@ -68,7 +68,7 @@ export const TeamsAuthModal: React.FC<TeamsAuthModalProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: localCheck.user.email,
-          password: password.trim(),
+          password_hash: localCheck.passwordHash,
         }),
       });
       if (res.ok) {

@@ -11,6 +11,7 @@ import type {
   Team,
   UserProfile,
 } from '../types.ts';
+import { hashPassword, hashPasswordSync } from '../engine/cryptoUtils.ts';
 
 export const REFERENCE_TODAY_ISO = '2026-11-09';
 export const DEFAULT_ODOO_BASE_URL = 'https://support.logtechub.com';
@@ -132,7 +133,7 @@ export function authenticateLogtechubUser(
   identifierInput: string,
   passwordInput: string,
   directory: UserProfile[] = SEED_USERS
-): { ok: true; user: UserProfile } | { ok: false; error: string } {
+): { ok: true; user: UserProfile; passwordHash: string } | { ok: false; error: string } {
   const cleanId = identifierInput.trim().toLowerCase();
   if (!cleanId) {
     return { ok: false, error: 'Please enter your email or username.' };
@@ -158,10 +159,14 @@ export function authenticateLogtechubUser(
   const expected2026 = `${username}2026`;
   const cleanPass = passwordInput.trim();
 
+  const inputHash = hashPassword(cleanPass);
+  const expectedCurrentHash = hashPassword(expectedCurrent);
+  const expected2026Hash = hashPassword(expected2026);
+
   const isMatch =
-    (Boolean(matched.password) && cleanPass === matched.password) ||
-    cleanPass === expectedCurrent ||
-    cleanPass === expected2026;
+    (Boolean(matched.password_hash) && inputHash === matched.password_hash) ||
+    inputHash === expectedCurrentHash ||
+    inputHash === expected2026Hash;
 
   if (!isMatch) {
     return {
@@ -170,8 +175,10 @@ export function authenticateLogtechubUser(
     };
   }
 
-  return { ok: true, user: matched };
+  return { ok: true, user: matched, passwordHash: inputHash };
 }
+
+export const authenticateLogtechubUserSync = authenticateLogtechubUser;
 
 export const SEED_TEMPLATES: ProjectTemplate[] = [
   {

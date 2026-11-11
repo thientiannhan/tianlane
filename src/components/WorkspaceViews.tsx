@@ -33,6 +33,7 @@ import {
   type Team,
   type UserProfile,
 } from '../types.ts';
+import { hashPassword } from '../engine/cryptoUtils.ts';
 import { diffDaysISO } from '../engine/scheduleEngine.ts';
 
 /* ============================================================================
@@ -1411,6 +1412,10 @@ export const AccountManagementView: React.FC<AccountManagementViewProps> = ({
         .toUpperCase()
         .slice(0, 2) || 'LT';
 
+    const passwordHash = createPassword.trim()
+      ? await hashPassword(createPassword.trim())
+      : undefined;
+
     const newUser: UserProfile = {
       id: `usr-${username.replace(/[^a-z0-9]/g, '-')}-${Date.now().toString().slice(-4)}`,
       microsoft_entra_id: `entra-${Date.now()}`,
@@ -1421,7 +1426,7 @@ export const AccountManagementView: React.FC<AccountManagementViewProps> = ({
       is_admin: createIsAdmin || createRole === 'Owner',
       teams_status: 'available',
       teams_webhook_url: '',
-      password: createPassword.trim() || `${username}${currentYear}`,
+      password_hash: passwordHash,
     };
 
     setIsSubmittingCreate(true);
@@ -1431,7 +1436,7 @@ export const AccountManagementView: React.FC<AccountManagementViewProps> = ({
       }
       setShowCreateModal(false);
       setResetSuccessNotice(
-        `Created account ${newUser.full_name} (${newUser.email}) with role ${newUser.role}. Default password: ${newUser.password}`
+        `Created account ${newUser.full_name} (${newUser.email}) with role ${newUser.role}.`
       );
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : 'Failed to create account');

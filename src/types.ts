@@ -11,7 +11,7 @@ export interface UserProfile {
   role: 'Owner' | 'Product Owner' | 'Tech Lead' | 'Senior Dev' | 'UI/UX Designer' | 'QA Engineer';
   teams_status: 'available' | 'busy' | 'in_meeting';
   teams_webhook_url: string;
-  password?: string;
+  password_hash?: string;
   is_admin?: boolean;
 }
 

@@ -254,7 +254,12 @@ export const App: React.FC = () => {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       try {
-        return JSON.parse(raw).users ?? SEED_USERS;
+        const parsed = (JSON.parse(raw).users ?? SEED_USERS) as UserProfile[];
+        return parsed.map((u) => {
+          const sanitized = { ...u };
+          delete (sanitized as Record<string, unknown>).password;
+          return sanitized;
+        });
       } catch {
         return SEED_USERS;
       }
@@ -1091,14 +1096,19 @@ export const App: React.FC = () => {
 
   const handleSaveProfile = async (
     updatedUser: UserProfile,
-    newPassword?: string
+    passwordHash?: string
   ) => {
-    setCurrentUser(updatedUser);
-    persistAuthUser(updatedUser);
+    const userToSave: UserProfile = {
+      ...updatedUser,
+      password_hash: passwordHash ?? updatedUser.password_hash,
+    };
+    delete (userToSave as Record<string, unknown>).password;
+    setCurrentUser(userToSave);
+    persistAuthUser(userToSave);
     setUsers((prev) =>
       prev.map((u) =>
-        u.email.toLowerCase() === updatedUser.email.toLowerCase()
-          ? updatedUser
+        u.email.toLowerCase() === userToSave.email.toLowerCase()
+          ? userToSave
           : u
       )
     );
@@ -1108,12 +1118,12 @@ export const App: React.FC = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: updatedUser.email,
-          fullName: updatedUser.full_name,
-          avatarInitials: updatedUser.avatar_initials,
-          avatarUrl: updatedUser.avatar_url,
-          role: updatedUser.role,
-          newPassword,
+          email: userToSave.email,
+          fullName: userToSave.full_name,
+          avatarInitials: userToSave.avatar_initials,
+          avatarUrl: userToSave.avatar_url,
+          role: userToSave.role,
+          password_hash: passwordHash,
         }),
       });
     } catch {
@@ -1203,7 +1213,7 @@ export const App: React.FC = () => {
           email: newUser.email,
           fullName: newUser.full_name,
           role: newUser.role,
-          newPassword: newUser.password,
+          password_hash: newUser.password_hash,
         }),
       });
     } catch {
@@ -1319,7 +1329,7 @@ export const App: React.FC = () => {
     setUsers((prev) =>
       prev.map((u) =>
         u.email.toLowerCase() === targetUser.email.toLowerCase()
-          ? { ...u, password: undefined }
+          ? { ...u, password_hash: undefined }
           : u
       )
     );

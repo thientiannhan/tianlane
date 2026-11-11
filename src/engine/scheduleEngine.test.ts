@@ -12,6 +12,7 @@ import {
 import { parseRoute, buildRouteUrl } from './routeEngine.ts';
 import {
   authenticateLogtechubUser,
+  authenticateLogtechubUserSync,
   SEED_MILESTONES,
   SEED_PROJECTS,
   SEED_TASKS,
@@ -19,6 +20,7 @@ import {
   SEED_TEMPLATES,
   SEED_USERS,
 } from '../data/seedData.ts';
+import { hashPassword, hashPasswordSync } from './cryptoUtils.ts';
 import {
   canUserAccessTeam,
   canUserEditProject,
@@ -139,29 +141,33 @@ assert.equal(canUserManageMembers(p0, secondOwner), true);
 assert.equal(canUserManageMembers(p0, writerUser), false);
 
 // 10. Test Logtechub account authentication & discreet error message (no hint!)
-assert.equal(authenticateLogtechubUser('james.nhan@logtechub.com', 'james.nhan2026').ok, true);
-assert.equal(authenticateLogtechubUser('azura.thuy', 'azura.thuy2026').ok, true);
-assert.equal(authenticateLogtechubUser('alex.phuong@logtechub.com', 'alex.phuong2026').ok, true);
+assert.equal(authenticateLogtechubUserSync('james.nhan@logtechub.com', 'james.nhan2026').ok, true);
+assert.equal(authenticateLogtechubUserSync('azura.thuy', 'azura.thuy2026').ok, true);
+assert.equal(authenticateLogtechubUserSync('alex.phuong@logtechub.com', 'alex.phuong2026').ok, true);
 
-const failCheck = authenticateLogtechubUser('james.nhan@logtechub.com', 'wrongpass');
+const failCheck = authenticateLogtechubUserSync('james.nhan@logtechub.com', 'wrongpass');
 assert.equal(failCheck.ok, false);
 if (!failCheck.ok) {
   assert.equal(failCheck.error, 'Invalid password. Please try again.');
   assert.equal(failCheck.error.includes('james.nhan2026'), false, 'Never leak password hint to users');
 }
 
-// Test custom password support & Reset Password back to default formula
-const userWithCustomPass = { ...creatorUser, password: 'MyNewSecretPassword2026!' };
+// Test custom password support (stored as salted SHA-256 hash) & Reset Password back to default formula
+const customHash = hashPasswordSync('MyNewSecretPassword2026!');
+assert.equal(customHash.length, 64, 'SHA-256 hash must be 64 hex characters');
+assert.notEqual(customHash, 'MyNewSecretPassword2026!', 'Password must never be stored in plain text');
+
+const userWithCustomPass = { ...creatorUser, password_hash: customHash };
 assert.equal(
-  authenticateLogtechubUser('james.nhan', 'MyNewSecretPassword2026!', [userWithCustomPass]).ok,
+  authenticateLogtechubUserSync('james.nhan', 'MyNewSecretPassword2026!', [userWithCustomPass]).ok,
   true,
-  'Custom password updated in profile should be recognized'
+  'Custom salted password hash updated in profile should be recognized'
 );
 
 // Reset password: removing custom password reverts back to username + current year
-const userAfterReset = { ...userWithCustomPass, password: undefined };
+const userAfterReset = { ...userWithCustomPass, password_hash: undefined };
 assert.equal(
-  authenticateLogtechubUser('james.nhan@logtechub.com', 'james.nhan2026', [userAfterReset]).ok,
+  authenticateLogtechubUserSync('james.nhan@logtechub.com', 'james.nhan2026', [userAfterReset]).ok,
   true,
   'Reset password should revert authentication back to <username>+year'
 );

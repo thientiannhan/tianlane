@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Eye, EyeOff, Lock, Shield, User, X } from 'lucide-react';
 import type { UserProfile } from '../types.ts';
+import { hashPassword } from '../engine/cryptoUtils.ts';
 
 interface UserProfileModalProps {
   isOpen: boolean;
   currentUser: UserProfile;
   onClose: () => void;
-  onSave: (updated: UserProfile, newPassword?: string) => Promise<void> | void;
+  onSave: (updated: UserProfile, passwordHash?: string) => Promise<void> | void;
 }
 
 const JOB_ROLES: UserProfile['role'][] = [
@@ -88,18 +89,22 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
     setIsSubmitting(true);
     try {
+      const passwordHash = newPassword.trim()
+        ? await hashPassword(newPassword.trim())
+        : currentUser.password_hash;
+
       const updatedUser: UserProfile = {
         ...currentUser,
         full_name: cleanName,
         avatar_initials: avatarInitials.trim().toUpperCase() || 'LT',
         avatar_url: avatarUrl.trim() || undefined,
         role,
-        password: newPassword.trim() ? newPassword.trim() : currentUser.password,
+        password_hash: passwordHash,
       };
 
       await onSave(
         updatedUser,
-        newPassword.trim() ? newPassword.trim() : undefined
+        newPassword.trim() ? passwordHash : undefined
       );
       onClose();
     } catch (err) {
