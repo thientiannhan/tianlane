@@ -11,6 +11,7 @@ export interface ParsedRoute {
   taskId?: string;
   rawProjectKey?: string;
   isInvite?: boolean;
+  isCanceledOrNotFound?: boolean;
 }
 
 /**
@@ -73,6 +74,8 @@ export function parseRoute(
 
   // 3. Match against loaded projects
   let matchedProject: Project | undefined;
+  let isCanceledOrNotFound = false;
+
   if (rawProjectKey) {
     const numKey = Number(rawProjectKey);
     const isNum = Number.isFinite(numKey) && !isNaN(numKey);
@@ -85,6 +88,12 @@ export function parseRoute(
       if (p.share_token && p.share_token.toLowerCase() === lowerKey) return true;
       return false;
     });
+
+    if (!matchedProject || matchedProject.status === 'canceled') {
+      section = 'inbox';
+      isCanceledOrNotFound = true;
+      matchedProject = undefined;
+    }
   }
 
   // If a team is matched directly or via project
@@ -94,7 +103,14 @@ export function parseRoute(
     const matchedTeam = teams.find(
       (t) => t.id === queryTeam || t.code.toLowerCase() === queryTeam.toLowerCase()
     );
-    if (matchedTeam) teamId = matchedTeam.id;
+    if (matchedTeam) {
+      if (matchedTeam.status === 'canceled') {
+        section = 'inbox';
+        isCanceledOrNotFound = true;
+      } else {
+        teamId = matchedTeam.id;
+      }
+    }
   }
 
   // 4. View mode
@@ -125,6 +141,7 @@ export function parseRoute(
     taskId,
     rawProjectKey,
     isInvite,
+    isCanceledOrNotFound,
   };
 }
 
@@ -139,6 +156,10 @@ export function buildRouteUrl(options: {
   task?: ProjectTask | null;
 }): string {
   const { section, project, viewMode, task } = options;
+
+  if (project?.status === 'canceled') {
+    return '/inbox';
+  }
 
   if (section === 'projects' || (section === 'files' && project)) {
     const projKey = project

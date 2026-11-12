@@ -411,4 +411,57 @@ assert.ok(!remainingMilestones.some((m) => m.project_id === projToDelete.id));
 const remainingTasks = SEED_TASKS.filter((t) => !deletedProjIds.has(t.project_id));
 assert.ok(!remainingTasks.some((t) => t.project_id === projToDelete.id));
 
-console.log('✓ All Tianlane scheduleEngine, RBAC, Multi-Team Access, R2 Presigner, Route Engine, Odoo AI Tags, Multi-Assignees & Project Deletion assertions passed.');
+// 20. Verify Soft Delete ('canceled' status) & Auto Redirect to Inbox
+const canceledProject = {
+  ...SEED_PROJECTS[0],
+  status: 'canceled' as const,
+};
+const canceledTeam = {
+  ...SEED_TEAMS[0],
+  status: 'canceled' as const,
+};
+const testProjectsWithCanceled = [canceledProject, ...SEED_PROJECTS.slice(1)];
+const testTeamsWithCanceled = [canceledTeam, ...SEED_TEAMS.slice(1)];
+
+// When deep linking to a canceled project, parseRoute must redirect to Inbox
+const canceledProjRoute = parseRoute(
+  `/project=${canceledProject.code}`,
+  '',
+  '',
+  testProjectsWithCanceled,
+  testTeamsWithCanceled
+);
+assert.equal(canceledProjRoute.section, 'inbox', 'Canceled project route must redirect to inbox');
+assert.equal(canceledProjRoute.isCanceledOrNotFound, true, 'Must set isCanceledOrNotFound to true');
+assert.equal(canceledProjRoute.projectId, undefined, 'ProjectId must be undefined on redirect');
+
+// When deep linking to a non-existent project, parseRoute must also redirect to Inbox
+const notFoundProjRoute = parseRoute(
+  '/project=NON_EXISTENT_9999',
+  '',
+  '',
+  testProjectsWithCanceled,
+  testTeamsWithCanceled
+);
+assert.equal(notFoundProjRoute.section, 'inbox', 'Non-existent project route must redirect to inbox');
+assert.equal(notFoundProjRoute.isCanceledOrNotFound, true, 'Must set isCanceledOrNotFound to true');
+
+// When deep linking to a canceled team, parseRoute must redirect to Inbox
+const canceledTeamRoute = parseRoute(
+  '/',
+  `?team=${canceledTeam.id}`,
+  '',
+  testProjectsWithCanceled,
+  testTeamsWithCanceled
+);
+assert.equal(canceledTeamRoute.section, 'inbox', 'Canceled team route must redirect to inbox');
+assert.equal(canceledTeamRoute.isCanceledOrNotFound, true, 'Must set isCanceledOrNotFound to true');
+
+// buildRouteUrl for canceled project must return /inbox
+const builtUrl = buildRouteUrl({
+  section: 'projects',
+  project: canceledProject,
+});
+assert.equal(builtUrl, '/inbox', 'buildRouteUrl for canceled project must return /inbox');
+
+console.log('✓ All Tianlane scheduleEngine, RBAC, Multi-Team Access, R2 Presigner, Route Engine, Odoo AI Tags, Multi-Assignees, Soft Deletion & Inbox Redirect assertions passed.');

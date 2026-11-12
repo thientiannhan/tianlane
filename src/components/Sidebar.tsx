@@ -97,14 +97,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const teamMenuRef = useRef<HTMLDivElement>(null);
 
   const isAdmin = isUserAdmin(currentUser);
-  const activeTeam = teams.find((t) => t.id === activeTeamId) ?? teams[0];
+  const activeTeam =
+    teams.find((t) => t.status !== 'canceled' && t.id === activeTeamId) ??
+    teams.find((t) => t.status !== 'canceled') ??
+    teams[0];
 
-  // Admin sees all teams; other users only see teams they belong to
-  const accessibleTeams = teams.filter((t) => canUserAccessTeam(t, currentUser));
+  // Admin sees all active teams; other users only see active teams they belong to
+  const accessibleTeams = teams.filter(
+    (t) => t.status !== 'canceled' && canUserAccessTeam(t, currentUser)
+  );
 
-  // Projects strictly filtered by the currently active team (1:1 boundary)
+  // Projects strictly filtered by active status and the currently active team (1:1 boundary)
   const visibleProjects = projects.filter(
-    (p) => p.team_id === activeTeam?.id
+    (p) => p.status !== 'canceled' && p.team_id === activeTeam?.id
   );
 
   const isPmOfActiveTeam = isUserTeamPM(activeTeam, currentUser);

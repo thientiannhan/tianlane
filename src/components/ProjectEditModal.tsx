@@ -346,11 +346,13 @@ export const ProjectEditModal: React.FC<ProjectEditModalProps> = ({
                   onChange={(e) => setTeamId(e.target.value)}
                   className="w-full px-3.5 py-2 rounded-xl border border-[#E6E8EE] text-[13px] text-[#121317] bg-white outline-none"
                 >
-                  {teams.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.icon || '🏢'} {t.name} ({t.code})
-                    </option>
-                  ))}
+                  {teams
+                    .filter((t) => t.status !== 'canceled')
+                    .map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.icon || '🏢'} {t.name} ({t.code})
+                      </option>
+                    ))}
                 </select>
                 <p className="text-[11px] text-[#6E717A] mt-1">
                   Projects belong strictly to one team. Members of other teams cannot access this project.
@@ -410,6 +412,7 @@ export const ProjectEditModal: React.FC<ProjectEditModalProps> = ({
                 <option value="at_risk">At Risk</option>
                 <option value="delayed">Delayed</option>
                 <option value="completed">Completed</option>
+                <option value="canceled">Canceled</option>
               </select>
             </div>
 

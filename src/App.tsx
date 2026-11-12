@@ -393,14 +393,17 @@ export const App: React.FC = () => {
       window.location.pathname,
       window.location.search,
       window.location.hash,
-      SEED_PROJECTS,
-      SEED_TEAMS
+      projects,
+      teams
     );
   }, []);
 
   const [activeTeamId, setActiveTeamId] = useState<string>(() => {
     if (initialRoute?.teamId) return initialRoute.teamId;
-    return localStorage.getItem('tianlane_active_team') || SEED_TEAMS[0].id;
+    const saved = localStorage.getItem('tianlane_active_team');
+    const matched = teams.find((t) => t.id === saved && t.status !== 'canceled');
+    if (matched) return matched.id;
+    return teams.find((t) => t.status !== 'canceled')?.id ?? SEED_TEAMS[0].id;
   });
 
   const [isUserProfileOpen, setIsUserProfileOpen] = useState<boolean>(false);
@@ -418,7 +421,11 @@ export const App: React.FC = () => {
     () => initialRoute?.section ?? 'projects'
   );
   const [activeProjectId, setActiveProjectId] = useState<string>(
-    () => initialRoute?.projectId ?? projects[0]?.id ?? SEED_PROJECTS[0].id
+    () =>
+      initialRoute?.projectId ??
+      projects.find((p) => p.status !== 'canceled')?.id ??
+      projects[0]?.id ??
+      SEED_PROJECTS[0].id
   );
   const [workspaceOpen, setWorkspaceOpen] = useState<boolean>(true);
   const [teamsOpen, setTeamsOpen] = useState<boolean>(true);
@@ -501,6 +508,54 @@ export const App: React.FC = () => {
       }
     }
   }, []);
+
+  // Auto-redirect to Inbox if user accesses a canceled or non-existent project/team via URL
+  useEffect(() => {
+    if (initialRoute?.isCanceledOrNotFound && !showLandingPage) {
+      setActiveSection('inbox');
+      showToast('Project or team was canceled or not found. Redirected to Inbox.');
+      if (typeof window !== 'undefined') {
+        window.history.replaceState({ section: 'inbox' }, '', '/inbox');
+      }
+    }
+  }, [initialRoute, showLandingPage]);
+
+  // Runtime safeguard: if activeProjectId points to a canceled project, redirect to Inbox
+  useEffect(() => {
+    if (activeProjectId) {
+      const proj = projects.find((p) => p.id === activeProjectId);
+      if (proj && proj.status === 'canceled') {
+        setActiveSection('inbox');
+        setActiveProjectId('');
+        showToast(`Project "${proj.code} · ${proj.name}" has been canceled. Redirected to Inbox.`);
+        if (typeof window !== 'undefined') {
+          window.history.replaceState({ section: 'inbox' }, '', '/inbox');
+        }
+      }
+    }
+  }, [activeProjectId, projects]);
+
+  // Runtime safeguard: if activeTeam points to a canceled team, switch to another active team or Inbox
+  useEffect(() => {
+    if (activeTeamId) {
+      const team = teams.find((t) => t.id === activeTeamId);
+      if (team && team.status === 'canceled') {
+        const remainingActive = teams.filter(
+          (t) => t.status !== 'canceled' && canUserAccessTeam(t, currentUser)
+        );
+        if (remainingActive.length > 0) {
+          handleSelectTeam(remainingActive[0].id);
+        } else {
+          setActiveSection('inbox');
+          setActiveTeamId('');
+          showToast(`Team "${team.name}" has been canceled. Redirected to Inbox.`);
+          if (typeof window !== 'undefined') {
+            window.history.replaceState({ section: 'inbox' }, '', '/inbox');
+          }
+        }
+      }
+    }
+  }, [activeTeamId, teams, currentUser]);
 
   // Open Microsoft Teams SSO modal automatically if arriving via invite link while signed out
   useEffect(() => {
@@ -724,25 +779,32 @@ export const App: React.FC = () => {
   };
 
   const accessibleTeams = useMemo(() => {
-    return teams.filter((t) => canUserAccessTeam(t, currentUser));
+    return teams.filter(
+      (t) => t.status !== 'canceled' && canUserAccessTeam(t, currentUser)
+    );
   }, [teams, currentUser]);
 
   const activeTeam = useMemo(() => {
     const found = accessibleTeams.find((t) => t.id === activeTeamId);
-    return found ?? accessibleTeams[0] ?? teams[0];
+    return (
+      found ??
+      accessibleTeams[0] ??
+      teams.find((t) => t.status !== 'canceled') ??
+      teams[0]
+    );
   }, [accessibleTeams, activeTeamId, teams]);
 
   const teamProjects = useMemo(() => {
     if (!activeTeam) return [];
-    return projects.filter((p) => p.team_id === activeTeam.id);
+    return projects.filter(
+      (p) => p.status !== 'canceled' && p.team_id === activeTeam.id
+    );
   }, [projects, activeTeam]);
 
   const activeProject = useMemo(() => {
-    return (
-      teamProjects.find((p) => p.id === activeProjectId) ??
-      teamProjects[0] ??
-      null
-    );
+    const found = teamProjects.find((p) => p.id === activeProjectId);
+    if (found && found.status !== 'canceled') return found;
+    return teamProjects[0] ?? null;
   }, [teamProjects, activeProjectId]);
 
   // Synchronize activeProjectId & activeTeamId across teams
@@ -1104,49 +1166,39 @@ export const App: React.FC = () => {
     const targetTeam = teams.find((t) => t.id === teamId);
     if (!targetTeam) return;
 
-    if (teams.length <= 1) {
-      showToast('Cannot delete the last remaining team in workspace.');
+    const activeTeams = teams.filter((t) => t.status !== 'canceled');
+    if (activeTeams.length <= 1) {
+      showToast('Cannot delete the last remaining active team in workspace.');
       return;
     }
 
     const confirmed = window.confirm(
-      `Are you sure you want to delete team "${targetTeam.name}"?\nAll projects, milestones, and tasks under this team will also be deleted.`
+      `Are you sure you want to delete team "${targetTeam.name}"?\nAll projects under this team will be marked as canceled.`
     );
     if (!confirmed) return;
 
-    const deletedIds = getDeletedTeamIds();
-    if (!deletedIds.includes(teamId)) {
-      localStorage.setItem(
-        DELETED_TEAMS_KEY,
-        JSON.stringify([...deletedIds, teamId])
-      );
-    }
-
-    const projsToDelete = projects.filter((p) => p.team_id === teamId);
-    const projIdsToDelete = new Set(projsToDelete.map((p) => p.id));
-    if (projsToDelete.length > 0) {
-      recordDeletedProjectIds(projsToDelete.map((p) => p.id));
-    }
-
-    const remainingTeams = teams.filter((t) => t.id !== teamId);
-    setTeams(remainingTeams);
-    setProjects((prev) => prev.filter((p) => p.team_id !== teamId));
-    setMilestones((prev) =>
-      prev.filter((m) => !projIdsToDelete.has(m.project_id))
-    );
-    setTasks((prev) => prev.filter((t) => !projIdsToDelete.has(t.project_id)));
-    setDocuments((prev) =>
-      prev.filter((d) => !projIdsToDelete.has(d.project_id))
-    );
-    setDocRequirements((prev) =>
-      prev.filter((r) => !projIdsToDelete.has(r.project_id))
+    // Soft-delete team by marking status as 'canceled'
+    setTeams((prev) =>
+      prev.map((t) => (t.id === teamId ? { ...t, status: 'canceled' } : t))
     );
 
-    if (activeTeamId === teamId && remainingTeams.length > 0) {
-      handleSelectTeam(remainingTeams[0].id);
+    // Soft-delete all projects under this team by marking status as 'canceled'
+    setProjects((prev) =>
+      prev.map((p) =>
+        p.team_id === teamId ? { ...p, status: 'canceled' } : p
+      )
+    );
+
+    const remainingActiveTeams = activeTeams.filter((t) => t.id !== teamId);
+    if (activeTeamId === teamId) {
+      if (remainingActiveTeams.length > 0) {
+        handleSelectTeam(remainingActiveTeams[0].id);
+      } else {
+        setActiveSection('inbox');
+      }
     }
 
-    showToast(`Deleted team "${targetTeam.name}".`);
+    showToast(`Team "${targetTeam.name}" and its projects have been canceled.`);
   };
 
   const handleUpdateMemberRole = async (
@@ -1727,8 +1779,9 @@ export const App: React.FC = () => {
   };
 
   const handleDeleteProject = (projectIdToDelete: string) => {
-    if (projects.length <= 1) {
-      showToast('At least one project must remain in the workspace.');
+    const activeProjects = projects.filter((p) => p.status !== 'canceled');
+    if (activeProjects.length <= 1) {
+      showToast('At least one active project must remain in the workspace.');
       return;
     }
     const target = projects.find((p) => p.id === projectIdToDelete);
@@ -1742,33 +1795,33 @@ export const App: React.FC = () => {
       );
       return;
     }
-    recordDeletedProjectIds([projectIdToDelete]);
-    const remaining = projects.filter((p) => p.id !== projectIdToDelete);
 
-    setProjects(remaining);
-    setMilestones((prev) =>
-      prev.filter((m) => m.project_id !== projectIdToDelete)
-    );
-    setTasks((prev) => prev.filter((t) => t.project_id !== projectIdToDelete));
-    setDocuments((prev) =>
-      prev.filter((d) => d.project_id !== projectIdToDelete)
-    );
-    setDocRequirements((prev) =>
-      prev.filter((r) => r.project_id !== projectIdToDelete)
-    );
-    setRevisionLogs((prev) =>
-      prev.filter((r) => r.project_id !== projectIdToDelete)
+    // Soft-delete project by marking status as 'canceled'
+    setProjects((prev) =>
+      prev.map((p) =>
+        p.id === projectIdToDelete ? { ...p, status: 'canceled' } : p
+      )
     );
 
+    const remainingActive = activeProjects.filter(
+      (p) => p.id !== projectIdToDelete
+    );
     if (activeProjectId === projectIdToDelete) {
-      const sameTeamRemaining = remaining.filter(
+      const sameTeamActive = remainingActive.filter(
         (p) => p.team_id === activeTeamId
       );
-      setActiveProjectId(sameTeamRemaining[0]?.id ?? remaining[0]?.id ?? '');
+      if (sameTeamActive.length > 0) {
+        setActiveProjectId(sameTeamActive[0].id);
+      } else if (remainingActive.length > 0) {
+        setActiveProjectId(remainingActive[0].id);
+      } else {
+        setActiveProjectId('');
+        setActiveSection('inbox');
+      }
     }
 
     showToast(
-      `Deleted project ${target ? `${target.code} · ${target.name}` : projectIdToDelete}.`
+      `Project ${target ? `${target.code} · ${target.name}` : projectIdToDelete} has been canceled.`
     );
   };
 
@@ -2108,8 +2161,16 @@ export const App: React.FC = () => {
     showToast('Restored default demo data.');
   };
 
+  const activeProjIds = useMemo(
+    () => new Set(projects.filter((p) => p.status !== 'canceled').map((p) => p.id)),
+    [projects]
+  );
+
   const inboxBadgeCount = tasks.filter(
-    (t) => t.is_gate_blocker && t.kanban_status !== 'done'
+    (t) =>
+      t.is_gate_blocker &&
+      t.kanban_status !== 'done' &&
+      activeProjIds.has(t.project_id)
   ).length;
 
   const invitedProjInfo = pendingInvite

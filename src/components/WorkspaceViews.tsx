@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Bell,
   Check,
@@ -56,8 +56,16 @@ export const InboxView: React.FC<InboxViewProps> = ({
 }) => {
   const [readIds, setReadIds] = useState<Record<string, boolean>>({});
 
+  const activeProjIds = useMemo(
+    () => new Set(projects.filter((p) => p.status !== 'canceled').map((p) => p.id)),
+    [projects]
+  );
+
   const blockerTasks = tasks.filter(
-    (t) => t.is_gate_blocker && t.kanban_status !== 'done'
+    (t) =>
+      t.is_gate_blocker &&
+      t.kanban_status !== 'done' &&
+      activeProjIds.has(t.project_id)
   );
 
   return (
@@ -1376,6 +1384,11 @@ export const AccountManagementView: React.FC<AccountManagementViewProps> = ({
   const [createTeamIds, setCreateTeamIds] = useState<string[]>([]);
   const [createPassword, setCreatePassword] = useState('');
   const [createError, setCreateError] = useState<string | null>(null);
+
+  const activeTeams: Team[] = useMemo(
+    () => teams.filter((t: Team) => t.status !== 'canceled'),
+    [teams]
+  );
   const [isSubmittingCreate, setIsSubmittingCreate] = useState(false);
 
   const currentYear = new Date().getFullYear();
@@ -1513,7 +1526,7 @@ export const AccountManagementView: React.FC<AccountManagementViewProps> = ({
                 setCreateEmail('');
                 setCreateRole('Owner');
                 setCreateIsAdmin(true);
-                setCreateTeamIds(teams.map((t) => t.id));
+                setCreateTeamIds(activeTeams.map((t) => t.id));
                 setCreatePassword('');
                 setCreateError(null);
                 setShowCreateModal(true);
@@ -1592,7 +1605,7 @@ export const AccountManagementView: React.FC<AccountManagementViewProps> = ({
           const username = u.email.split('@')[0];
           const isCurrent = currentUser ? currentUser.id === u.id : false;
           const isUserAdm = isUserAdmin(u);
-          const userTeams = teams.filter(
+          const userTeams = activeTeams.filter(
             (t) => t.member_ids?.includes(u.id) || t.pm_ids?.includes(u.id)
           );
 
@@ -1844,13 +1857,13 @@ export const AccountManagementView: React.FC<AccountManagementViewProps> = ({
                 </p>
               </div>
 
-              {teams.length > 0 && (
+              {activeTeams.length > 0 && (
                 <div>
                   <label className="block text-[12px] font-medium text-[#45474D] mb-1.5">
                     Assign to Teams
                   </label>
                   <div className="space-y-1.5 max-h-36 overflow-y-auto p-2 rounded-xl border border-[#E6E8EE] bg-[#F7F8FA]">
-                    {teams.map((tm) => {
+                    {activeTeams.map((tm) => {
                       const isChecked = createTeamIds.includes(tm.id);
                       return (
                         <label

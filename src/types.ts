@@ -24,6 +24,7 @@ export interface Team {
   pm_ids: string[];
   member_ids: string[];
   created_at?: string;
+  status?: 'active' | 'canceled';
 }
 
 export interface TemplateMilestoneDef {
@@ -175,7 +176,7 @@ export interface Project {
   client_or_unit: string;
   description: string;
   template_id: string;
-  status: 'on_track' | 'at_risk' | 'delayed' | 'completed';
+  status: 'on_track' | 'at_risk' | 'delayed' | 'completed' | 'canceled';
   owner_id: string;
   team_id?: string;
   odoo_project_id: number;
