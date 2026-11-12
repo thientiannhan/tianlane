@@ -5,6 +5,7 @@ import {
   canUserEditProject,
   getApiBaseUrl,
   isProjectCreator,
+  isUserAdmin,
   type BaselineRevisionEntry,
   type KanbanStatus,
   type McpExecutionLog,
@@ -81,6 +82,7 @@ const STORAGE_KEY = 'tianlane_pm_state_v5';
 const AUTH_STORAGE_KEY = 'tianlane_auth_user_v2';
 const REDIRECT_STORAGE_KEY = 'tianlane_redirect_after_login_v1';
 const DELETED_TEAMS_KEY = 'tianlane_deleted_team_ids_v1';
+const DELETED_PROJECTS_KEY = 'tianlane_deleted_project_ids_v1';
 
 const getSavedAuthUser = (): UserProfile | null => {
   if (typeof window === 'undefined') return null;
@@ -131,13 +133,36 @@ const getDeletedTeamIds = (): string[] => {
   }
 };
 
+const getDeletedProjectIds = (): string[] => {
+  try {
+    const raw = localStorage.getItem(DELETED_PROJECTS_KEY);
+    return raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    return [];
+  }
+};
+
+const recordDeletedProjectIds = (projectIds: string[]) => {
+  try {
+    const existing = new Set(getDeletedProjectIds());
+    projectIds.forEach((id) => existing.add(id));
+    localStorage.setItem(
+      DELETED_PROJECTS_KEY,
+      JSON.stringify(Array.from(existing))
+    );
+  } catch {}
+};
+
 export const App: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>(() => {
+    const deletedProjIds = new Set(getDeletedProjectIds());
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       try {
         const rawParsed = JSON.parse(raw).projects ?? SEED_PROJECTS;
-        const parsed = (Array.isArray(rawParsed) ? rawParsed.filter((p) => p && typeof p === 'object' && p.id) : SEED_PROJECTS) as Project[];
+        const parsed = (Array.isArray(rawParsed)
+          ? rawParsed.filter((p) => p && typeof p === 'object' && p.id && !deletedProjIds.has(p.id))
+          : SEED_PROJECTS.filter((p) => !deletedProjIds.has(p.id))) as Project[];
         const mapped = parsed.map((p) => {
           if (p.code === 'PL071026' || p.code === '26-11' || p.id.includes('efms')) {
             return { ...p, team_id: 'team-efms' };
@@ -151,83 +176,101 @@ export const App: React.FC = () => {
           return p;
         });
         const existingIds = new Set(mapped.map((p) => p.id));
-        const missingSeeds = SEED_PROJECTS.filter((p) => !existingIds.has(p.id));
+        const missingSeeds = SEED_PROJECTS.filter(
+          (p) => !existingIds.has(p.id) && !deletedProjIds.has(p.id)
+        );
         return [...mapped, ...missingSeeds];
       } catch {
-        return SEED_PROJECTS;
+        return SEED_PROJECTS.filter((p) => !deletedProjIds.has(p.id));
       }
     }
-    return SEED_PROJECTS;
+    return SEED_PROJECTS.filter((p) => !deletedProjIds.has(p.id));
   });
 
   const [milestones, setMilestones] = useState<ProjectMilestone[]>(() => {
+    const deletedProjIds = new Set(getDeletedProjectIds());
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       try {
         const rawParsed = JSON.parse(raw).milestones ?? SEED_MILESTONES;
-        const parsed = (Array.isArray(rawParsed) ? rawParsed.filter((m) => m && typeof m === 'object' && m.id) : SEED_MILESTONES) as ProjectMilestone[];
+        const parsed = (Array.isArray(rawParsed)
+          ? rawParsed.filter((m) => m && typeof m === 'object' && m.id && !deletedProjIds.has(m.project_id))
+          : SEED_MILESTONES.filter((m) => !deletedProjIds.has(m.project_id))) as ProjectMilestone[];
         const existingIds = new Set(parsed.map((m) => m.id));
-        const missingSeeds = SEED_MILESTONES.filter((m) => !existingIds.has(m.id));
+        const missingSeeds = SEED_MILESTONES.filter(
+          (m) => !existingIds.has(m.id) && !deletedProjIds.has(m.project_id)
+        );
         return [...parsed, ...missingSeeds];
       } catch {
-        return SEED_MILESTONES;
+        return SEED_MILESTONES.filter((m) => !deletedProjIds.has(m.project_id));
       }
     }
-    return SEED_MILESTONES;
+    return SEED_MILESTONES.filter((m) => !deletedProjIds.has(m.project_id));
   });
 
   const [tasks, setTasks] = useState<ProjectTask[]>(() => {
+    const deletedProjIds = new Set(getDeletedProjectIds());
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       try {
         const rawParsed = JSON.parse(raw).tasks ?? SEED_TASKS;
-        const parsed = (Array.isArray(rawParsed) ? rawParsed.filter((t) => t && typeof t === 'object' && t.id) : SEED_TASKS) as ProjectTask[];
+        const parsed = (Array.isArray(rawParsed)
+          ? rawParsed.filter((t) => t && typeof t === 'object' && t.id && !deletedProjIds.has(t.project_id))
+          : SEED_TASKS.filter((t) => !deletedProjIds.has(t.project_id))) as ProjectTask[];
         const existingIds = new Set(parsed.map((t) => t.id));
-        const missingSeeds = SEED_TASKS.filter((t) => !existingIds.has(t.id));
+        const missingSeeds = SEED_TASKS.filter(
+          (t) => !existingIds.has(t.id) && !deletedProjIds.has(t.project_id)
+        );
         return [...parsed, ...missingSeeds];
       } catch {
-        return SEED_TASKS;
+        return SEED_TASKS.filter((t) => !deletedProjIds.has(t.project_id));
       }
     }
-    return SEED_TASKS;
+    return SEED_TASKS.filter((t) => !deletedProjIds.has(t.project_id));
   });
 
   const [documents, setDocuments] = useState<ProjectDocument[]>(() => {
+    const deletedProjIds = new Set(getDeletedProjectIds());
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       try {
-        return JSON.parse(raw).documents ?? SEED_DOCUMENTS;
+        const parsed = (JSON.parse(raw).documents ?? SEED_DOCUMENTS) as ProjectDocument[];
+        return parsed.filter((d) => !deletedProjIds.has(d.project_id));
       } catch {
-        return SEED_DOCUMENTS;
+        return SEED_DOCUMENTS.filter((d) => !deletedProjIds.has(d.project_id));
       }
     }
-    return SEED_DOCUMENTS;
+    return SEED_DOCUMENTS.filter((d) => !deletedProjIds.has(d.project_id));
   });
 
   const [docRequirements, setDocRequirements] = useState<
     ProjectDocRequirement[]
   >(() => {
+    const deletedProjIds = new Set(getDeletedProjectIds());
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       try {
-        return JSON.parse(raw).docRequirements ?? SEED_DOC_REQUIREMENTS;
+        const parsed = (JSON.parse(raw).docRequirements ?? SEED_DOC_REQUIREMENTS) as ProjectDocRequirement[];
+        return parsed.filter((r) => !deletedProjIds.has(r.project_id));
       } catch {
-        return SEED_DOC_REQUIREMENTS;
+        return SEED_DOC_REQUIREMENTS.filter((r) => !deletedProjIds.has(r.project_id));
       }
     }
-    return SEED_DOC_REQUIREMENTS;
+    return SEED_DOC_REQUIREMENTS.filter((r) => !deletedProjIds.has(r.project_id));
   });
 
   const [revisionLogs, setRevisionLogs] = useState<BaselineRevisionEntry[]>(() => {
+    const deletedProjIds = new Set(getDeletedProjectIds());
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       try {
-        return JSON.parse(raw).revisionLogs ?? SEED_REVISION_LOGS;
+        const parsed = (JSON.parse(raw).revisionLogs ?? SEED_REVISION_LOGS) as BaselineRevisionEntry[];
+        return parsed.filter((r) => !deletedProjIds.has(r.project_id));
       } catch {
-        return SEED_REVISION_LOGS;
+        return SEED_REVISION_LOGS.filter((r) => !deletedProjIds.has(r.project_id));
       }
     }
-    return SEED_REVISION_LOGS;
+    return SEED_REVISION_LOGS.filter((r) => !deletedProjIds.has(r.project_id));
   });
 
   const [mcpLogs, setMcpLogs] = useState<McpExecutionLog[]>(() => {
@@ -491,47 +534,70 @@ export const App: React.FC = () => {
         if (remote && Array.isArray(remote.projects) && remote.projects.length > 0) {
           skipNextCloudSaveRef.current = true;
           const deletedIds = new Set(getDeletedTeamIds());
+          const deletedProjIds = new Set(getDeletedProjectIds());
 
           const validRemoteProjects = (remote.projects as Project[]).filter(
-            (p) => p && typeof p === 'object' && p.id
+            (p) => p && typeof p === 'object' && p.id && !deletedProjIds.has(p.id) && !deletedIds.has(p.team_id || '')
           );
           const projMap = new Map<string, Project>(
             validRemoteProjects.map((p: Project) => [p.id, p])
           );
           for (const sp of SEED_PROJECTS) {
-            if (!projMap.has(sp.id)) projMap.set(sp.id, sp);
+            if (!projMap.has(sp.id) && !deletedProjIds.has(sp.id) && !deletedIds.has(sp.team_id || '')) {
+              projMap.set(sp.id, sp);
+            }
           }
           setProjects(Array.from(projMap.values()));
 
           if (Array.isArray(remote.milestones)) {
             const validRemoteMs = (remote.milestones as ProjectMilestone[]).filter(
-              (m) => m && typeof m === 'object' && m.id
+              (m) => m && typeof m === 'object' && m.id && !deletedProjIds.has(m.project_id)
             );
             const msMap = new Map<string, ProjectMilestone>(
               validRemoteMs.map((m: ProjectMilestone) => [m.id, m])
             );
             for (const sm of SEED_MILESTONES) {
-              if (!msMap.has(sm.id)) msMap.set(sm.id, sm);
+              if (!msMap.has(sm.id) && !deletedProjIds.has(sm.project_id)) {
+                msMap.set(sm.id, sm);
+              }
             }
             setMilestones(Array.from(msMap.values()));
           }
           if (Array.isArray(remote.tasks)) {
             const validRemoteTasks = (remote.tasks as ProjectTask[]).filter(
-              (t) => t && typeof t === 'object' && t.id
+              (t) => t && typeof t === 'object' && t.id && !deletedProjIds.has(t.project_id)
             );
             const tMap = new Map<string, ProjectTask>(
               validRemoteTasks.map((t: ProjectTask) => [t.id, t])
             );
             for (const st of SEED_TASKS) {
-              if (!tMap.has(st.id)) tMap.set(st.id, st);
+              if (!tMap.has(st.id) && !deletedProjIds.has(st.project_id)) {
+                tMap.set(st.id, st);
+              }
             }
             setTasks(Array.from(tMap.values()));
           }
-          if (Array.isArray(remote.documents)) setDocuments(remote.documents);
-          if (Array.isArray(remote.docRequirements))
-            setDocRequirements(remote.docRequirements);
-          if (Array.isArray(remote.revisionLogs))
-            setRevisionLogs(remote.revisionLogs);
+          if (Array.isArray(remote.documents)) {
+            setDocuments(
+              (remote.documents as ProjectDocument[]).filter(
+                (d) => !deletedProjIds.has(d.project_id)
+              )
+            );
+          }
+          if (Array.isArray(remote.docRequirements)) {
+            setDocRequirements(
+              (remote.docRequirements as ProjectDocRequirement[]).filter(
+                (r) => !deletedProjIds.has(r.project_id)
+              )
+            );
+          }
+          if (Array.isArray(remote.revisionLogs)) {
+            setRevisionLogs(
+              (remote.revisionLogs as BaselineRevisionEntry[]).filter(
+                (r) => !deletedProjIds.has(r.project_id)
+              )
+            );
+          }
           if (Array.isArray(remote.templates)) setTemplates(remote.templates);
           if (Array.isArray(remote.teams) && remote.teams.length > 0) {
             const validRemoteTeams = (remote.teams as Team[]).filter(
@@ -1058,6 +1124,9 @@ export const App: React.FC = () => {
 
     const projsToDelete = projects.filter((p) => p.team_id === teamId);
     const projIdsToDelete = new Set(projsToDelete.map((p) => p.id));
+    if (projsToDelete.length > 0) {
+      recordDeletedProjectIds(projsToDelete.map((p) => p.id));
+    }
 
     const remainingTeams = teams.filter((t) => t.id !== teamId);
     setTeams(remainingTeams);
@@ -1663,12 +1732,17 @@ export const App: React.FC = () => {
       return;
     }
     const target = projects.find((p) => p.id === projectIdToDelete);
-    if (target && !isProjectCreator(target, currentUser)) {
+    if (
+      target &&
+      !isProjectCreator(target, currentUser) &&
+      !isUserAdmin(currentUser)
+    ) {
       showToast(
-        'Only the project creator (Creator Owner) has permission to delete this project.'
+        'Only the project creator or Admin has permission to delete this project.'
       );
       return;
     }
+    recordDeletedProjectIds([projectIdToDelete]);
     const remaining = projects.filter((p) => p.id !== projectIdToDelete);
 
     setProjects(remaining);
@@ -1686,8 +1760,11 @@ export const App: React.FC = () => {
       prev.filter((r) => r.project_id !== projectIdToDelete)
     );
 
-    if (activeProjectId === projectIdToDelete && remaining[0]) {
-      setActiveProjectId(remaining[0].id);
+    if (activeProjectId === projectIdToDelete) {
+      const sameTeamRemaining = remaining.filter(
+        (p) => p.team_id === activeTeamId
+      );
+      setActiveProjectId(sameTeamRemaining[0]?.id ?? remaining[0]?.id ?? '');
     }
 
     showToast(
@@ -2399,7 +2476,10 @@ export const App: React.FC = () => {
           teams={accessibleTeams}
           totalProjectsCount={projects.length}
           odooBaseUrl={odooBaseUrl}
-          canDeleteProject={isProjectCreator(activeProject, currentUser)}
+          canDeleteProject={
+            isProjectCreator(activeProject, currentUser) ||
+            isUserAdmin(currentUser)
+          }
           onClose={() => setIsEditProjectModalOpen(false)}
           onSaveProject={handleSaveProject}
           onDeleteProject={handleDeleteProject}

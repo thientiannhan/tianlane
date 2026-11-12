@@ -33,6 +33,7 @@ export class ErrorBoundary extends Component<Props, State> {
       localStorage.removeItem('tianlane_active_team');
       localStorage.removeItem('tianlane_auth_user_v2');
       localStorage.removeItem('tianlane_deleted_team_ids_v1');
+      localStorage.removeItem('tianlane_deleted_project_ids_v1');
       sessionStorage.removeItem('tianlane_auth_user_v2');
       sessionStorage.removeItem('tianlane_redirect_after_login_v1');
     } catch {

@@ -389,4 +389,26 @@ const baMember = t01Resolved.find((r) => r.role === 'BA');
 assert.ok(baMember, 'T01 must have a BA');
 assert.equal(baMember.user.full_name, 'James Nhan');
 
-console.log('✓ All Tianlane scheduleEngine, RBAC, Multi-Team Access, R2 Presigner, Route Engine, Odoo AI Tags & Multi-Assignees assertions passed.');
+// 19. Verify Project Deletion Persistence & Anti-Resurrection
+const projToDelete = SEED_PROJECTS[1]; // proj-efms-2611
+const deletedProjIds = new Set([projToDelete.id]);
+const remainingProjects = SEED_PROJECTS.filter((p) => !deletedProjIds.has(p.id));
+assert.equal(remainingProjects.length, SEED_PROJECTS.length - 1);
+assert.ok(!remainingProjects.some((p) => p.id === projToDelete.id));
+
+// Anti-resurrection check: missingSeeds must not re-include deletedProjIds
+const existingProjIds = new Set(remainingProjects.map((p) => p.id));
+const missingSeeds = SEED_PROJECTS.filter(
+  (p) => !existingProjIds.has(p.id) && !deletedProjIds.has(p.id)
+);
+assert.equal(missingSeeds.length, 0, 'Deleted project must not be resurrected by missingSeeds');
+const reseededProjects = [...remainingProjects, ...missingSeeds];
+assert.equal(reseededProjects.length, SEED_PROJECTS.length - 1);
+
+// Cascading milestone and task deletion
+const remainingMilestones = SEED_MILESTONES.filter((m) => !deletedProjIds.has(m.project_id));
+assert.ok(!remainingMilestones.some((m) => m.project_id === projToDelete.id));
+const remainingTasks = SEED_TASKS.filter((t) => !deletedProjIds.has(t.project_id));
+assert.ok(!remainingTasks.some((t) => t.project_id === projToDelete.id));
+
+console.log('✓ All Tianlane scheduleEngine, RBAC, Multi-Team Access, R2 Presigner, Route Engine, Odoo AI Tags, Multi-Assignees & Project Deletion assertions passed.');
