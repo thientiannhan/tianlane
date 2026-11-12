@@ -40,6 +40,7 @@ import {
 import {
   addDaysISO,
   calculateMilestoneProgress,
+  getTodayIsoUTC7,
   instantiateProjectFromTemplateEngine,
   mapKanbanToOdooStage,
 } from './engine/scheduleEngine.ts';
@@ -429,6 +430,22 @@ export const App: React.FC = () => {
   );
   const [workspaceOpen, setWorkspaceOpen] = useState<boolean>(true);
   const [teamsOpen, setTeamsOpen] = useState<boolean>(true);
+
+  // Synchronize today's date with UTC+7 (Asia/Ho_Chi_Minh)
+  const [todayISO, setTodayISO] = useState<string>(() => getTodayIsoUTC7());
+
+  useEffect(() => {
+    const updateToday = () => {
+      const current = getTodayIsoUTC7();
+      setTodayISO((prev) => (prev !== current ? current : prev));
+    };
+    const interval = setInterval(updateToday, 60_000);
+    window.addEventListener('focus', updateToday);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', updateToday);
+    };
+  }, []);
 
   const [filterState, setFilterState] = useState<ProjectFilterState>({
     searchQuery: '',
@@ -1583,7 +1600,7 @@ export const App: React.FC = () => {
     const ms = milestones.find((m) => m.id === milestoneId);
     const nextIdx = projectTasks.length + 1;
     const code = `${activeProject.code}-T${String(nextIdx).padStart(2, '0')}`;
-    const startIso = ms?.actual_start ?? REFERENCE_TODAY_ISO;
+    const startIso = ms?.actual_start ?? todayISO;
     const endIso = addDaysISO(startIso, 5);
 
     const newTask: ProjectTask = {
@@ -2358,13 +2375,13 @@ export const App: React.FC = () => {
                   documents={documents}
                   docRequirements={docRequirements}
                   currentUser={currentUser}
-                  referenceTodayISO={REFERENCE_TODAY_ISO}
+                  referenceTodayISO={todayISO}
                   onAddDocument={(doc) => {
                     if (!requireWriteAccess()) return;
                     const newDoc: ProjectDocument = {
                       ...doc,
                       id: `doc-${Date.now()}`,
-                      uploaded_at: REFERENCE_TODAY_ISO,
+                      uploaded_at: todayISO,
                     };
                     setDocuments((prev) => [newDoc, ...prev]);
                     showToast(
@@ -2422,7 +2439,7 @@ export const App: React.FC = () => {
                         documents={projectDocs}
                         docRequirements={projectDocRequirements}
                         revisionLogs={projectRevisions}
-                        referenceTodayISO={REFERENCE_TODAY_ISO}
+                        referenceTodayISO={todayISO}
                         showBaselineGhost={displayState.showBaseline}
                         displayProperties={displayState.properties}
                         onSelectMilestone={(ms) => {
@@ -2508,7 +2525,7 @@ export const App: React.FC = () => {
           const newDoc: ProjectDocument = {
             ...doc,
             id: `doc-${Date.now()}`,
-            uploaded_at: REFERENCE_TODAY_ISO,
+            uploaded_at: todayISO,
           };
           setDocuments((prev) => [newDoc, ...prev]);
           showToast(`Attached document: ${doc.file_name}.`);
@@ -2523,7 +2540,7 @@ export const App: React.FC = () => {
         activeTeamId={activeTeam?.id || 'team-efms'}
         users={users}
         currentUser={currentUser}
-        referenceTodayISO={REFERENCE_TODAY_ISO}
+        referenceTodayISO={todayISO}
         onClose={() => setIsTemplateModalOpen(false)}
         onInstantiate={handleInstantiateFromTemplate}
       />

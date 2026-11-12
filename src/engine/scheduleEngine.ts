@@ -10,6 +10,50 @@ import type {
 
 export const MAX_SUPABASE_FILE_BYTES = 50 * 1024 * 1024;
 
+/**
+ * Returns today's ISO date string (YYYY-MM-DD) synchronized with UTC+7 (Asia/Ho_Chi_Minh).
+ */
+export function getTodayIsoUTC7(): string {
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date());
+  } catch {
+    const d = new Date(Date.now() + 7 * 3600 * 1000);
+    return d.toISOString().slice(0, 10);
+  }
+}
+
+/**
+ * Formats an ISO date into month-day badge label for timeline ruler (e.g. '2026-11-12' -> 'NOV 12').
+ */
+export function formatMonthDayBadge(isoDate: string): string {
+  if (!isoDate) return 'TODAY';
+  const parts = isoDate.split('-');
+  if (parts.length < 3) return isoDate;
+  const m = Number(parts[1]);
+  const d = Number(parts[2]);
+  const MONTHS = [
+    'JAN',
+    'FEB',
+    'MAR',
+    'APR',
+    'MAY',
+    'JUN',
+    'JUL',
+    'AUG',
+    'SEP',
+    'OCT',
+    'NOV',
+    'DEC',
+  ];
+  const monthName = MONTHS[(m || 1) - 1] ?? 'NOV';
+  return `${monthName} ${d}`;
+}
+
 export function addDaysISO(isoDate: string, offsetDays: number): string {
   const [y, m, d] = isoDate.split('-').map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d + offsetDays));

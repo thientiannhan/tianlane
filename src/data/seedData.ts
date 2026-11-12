@@ -12,8 +12,9 @@ import type {
   UserProfile,
 } from '../types.ts';
 import { hashPassword, hashPasswordSync } from '../engine/cryptoUtils.ts';
+import { getTodayIsoUTC7 } from '../engine/scheduleEngine.ts';
 
-export const REFERENCE_TODAY_ISO = '2026-11-09';
+export const REFERENCE_TODAY_ISO = getTodayIsoUTC7();
 export const DEFAULT_ODOO_BASE_URL = 'https://support.logtechub.com';
 
 export const DEFAULT_ODOO_CONFIG: OdooConnectionConfig = {

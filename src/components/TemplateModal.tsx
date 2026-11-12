@@ -31,6 +31,7 @@ export const TemplateModal: React.FC<TemplateModalProps> = ({
   templates,
   teams,
   activeTeamId,
+  referenceTodayISO,
   onInstantiate,
 }) => {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(
@@ -43,7 +44,9 @@ export const TemplateModal: React.FC<TemplateModalProps> = ({
   const [selectedTeamId, setSelectedTeamId] = useState<string>(() => {
     return activeTeamId || (teams && teams[0]?.id) || 'team-control-tower';
   });
-  const [startDateISO, setStartDateISO] = useState('2026-11-16');
+  const [startDateISO, setStartDateISO] = useState(
+    () => referenceTodayISO || '2026-11-12'
+  );
   const [odooProjectId, setOdooProjectId] = useState('64');
   const [autoPushToOdoo, setAutoPushToOdoo] = useState(true);
   const [formError, setFormError] = useState<string | null>(null);

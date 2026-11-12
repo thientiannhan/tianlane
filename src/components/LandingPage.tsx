@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import type { UserProfile } from '../types.ts';
 import { AntigravityHeroField } from './AntigravityHeroField.tsx';
+import { formatMonthDayBadge, getTodayIsoUTC7 } from '../engine/scheduleEngine.ts';
 
 interface LandingPageProps {
   users: UserProfile[];
@@ -253,7 +254,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <div className="grid grid-cols-3 border-b border-[#E6E8EE] pb-3 mb-6 text-[12.5px] text-[#45474D]">
                   <div>October 2026</div>
                   <div className="font-medium text-[#121317]">
-                    November 2026 · Today Nov 09
+                    November 2026 · Today {formatMonthDayBadge(getTodayIsoUTC7())}
                   </div>
                   <div>December 2026</div>
                 </div>

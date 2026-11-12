@@ -5,6 +5,8 @@ import {
   canCloseMilestoneGate,
   diffDaysISO,
   evaluateMilestoneHealth,
+  formatMonthDayBadge,
+  getTodayIsoUTC7,
   instantiateProjectFromTemplateEngine,
   mapOdooStageToKanban,
   validateAttachmentFileSize,
@@ -13,6 +15,7 @@ import { parseRoute, buildRouteUrl } from './routeEngine.ts';
 import {
   authenticateLogtechubUser,
   authenticateLogtechubUserSync,
+  REFERENCE_TODAY_ISO,
   SEED_MILESTONES,
   SEED_PROJECTS,
   SEED_TASKS,
@@ -464,4 +467,12 @@ const builtUrl = buildRouteUrl({
 });
 assert.equal(builtUrl, '/inbox', 'buildRouteUrl for canceled project must return /inbox');
 
-console.log('✓ All Tianlane scheduleEngine, RBAC, Multi-Team Access, R2 Presigner, Route Engine, Odoo AI Tags, Multi-Assignees, Soft Deletion & Inbox Redirect assertions passed.');
+// 21. Verify UTC+7 Real-time Timeline Date Synchronization & Formatting
+const todayUTC7 = getTodayIsoUTC7();
+assert.match(todayUTC7, /^\d{4}-\d{2}-\d{2}$/, 'getTodayIsoUTC7 must return YYYY-MM-DD');
+assert.equal(REFERENCE_TODAY_ISO, todayUTC7, 'REFERENCE_TODAY_ISO must be synced with UTC+7');
+assert.equal(formatMonthDayBadge('2026-11-12'), 'NOV 12');
+assert.equal(formatMonthDayBadge('2026-12-05'), 'DEC 5');
+assert.equal(formatMonthDayBadge('2027-01-01'), 'JAN 1');
+
+console.log('✓ All Tianlane scheduleEngine, RBAC, Multi-Team Access, R2 Presigner, Route Engine, Odoo AI Tags, Multi-Assignees, Soft Deletion, Inbox Redirect & UTC+7 Timeline Sync assertions passed.');

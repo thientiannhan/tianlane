@@ -29,6 +29,7 @@ import { PriorityIconBadge } from './PriorityIconBadge.tsx';
 import {
   diffDaysISO,
   evaluateMilestoneHealth,
+  formatMonthDayBadge,
 } from '../engine/scheduleEngine.ts';
 
 interface TimelineViewProps {
@@ -415,25 +416,30 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
               <div className="relative h-7 bg-[#FAFBFD]">
                 {MONTH_RULER.flatMap((m) => m.ticks).map((tick) => {
                   const pct = dateToPercent(tick.iso, 0);
-                  const isTodayTick = tick.iso === referenceTodayISO;
+                  const isCloseToToday = Math.abs(pct - todayPct) < 1.4;
+                  if (isCloseToToday) return null;
                   return (
                     <div
                       key={tick.iso}
                       style={{ left: `${pct}%` }}
                       className="absolute top-1 -translate-x-1/2 flex flex-col items-center"
                     >
-                      {isTodayTick ? (
-                        <span className="px-2 py-0.5 rounded-full bg-[#0A4595] text-white text-[10.5px] font-semibold font-mono shadow-clean-xs">
-                          NOV 9
-                        </span>
-                      ) : (
-                        <span className="text-[11px] font-mono text-[#6E717A]">
-                          {tick.dayNum}
-                        </span>
-                      )}
+                      <span className="text-[11px] font-mono text-[#6E717A]">
+                        {tick.dayNum}
+                      </span>
                     </div>
                   );
                 })}
+
+                {/* Synchronized Today Pin Badge (UTC+7) */}
+                <div
+                  style={{ left: `${todayPct}%` }}
+                  className="absolute top-1 -translate-x-1/2 z-10 flex flex-col items-center pointer-events-none"
+                >
+                  <span className="px-2 py-0.5 rounded-full bg-[#0A4595] text-white text-[10.5px] font-semibold font-mono shadow-clean-xs whitespace-nowrap">
+                    {formatMonthDayBadge(referenceTodayISO)}
+                  </span>
+                </div>
               </div>
             </div>
 
