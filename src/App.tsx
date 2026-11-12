@@ -68,6 +68,7 @@ import {
 import { Sidebar, type SidebarSection } from './components/Sidebar.tsx';
 import { ProjectTopBar } from './components/ProjectTopBar.tsx';
 import { PwaInstallModal } from './components/PwaInstallModal.tsx';
+import { hashPasswordSync } from './engine/cryptoUtils.ts';
 import { TeamsAuthModal } from './components/TeamsAuthModal.tsx';
 import { ProjectMembersModal } from './components/ProjectMembersModal.tsx';
 import { UserProfileModal } from './components/UserProfileModal.tsx';
@@ -82,6 +83,7 @@ interface BeforeInstallPromptEvent extends Event {
 const STORAGE_KEY = 'tianlane_pm_state_v5';
 const AUTH_STORAGE_KEY = 'tianlane_auth_user_v2';
 const REDIRECT_STORAGE_KEY = 'tianlane_redirect_after_login_v1';
+const PENDING_INVITE_STORAGE_KEY = 'tianlane_pending_invite_v1';
 const DELETED_TEAMS_KEY = 'tianlane_deleted_team_ids_v1';
 const DELETED_PROJECTS_KEY = 'tianlane_deleted_project_ids_v1';
 
@@ -486,21 +488,41 @@ export const App: React.FC = () => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const [pendingInvite, setPendingInvite] = useState<{
-    projectId: string;
+    projectId?: string;
+    teamId?: string;
     token: string;
     role: ProjectMemberRole;
   } | null>(() => {
     if (typeof window === 'undefined') return null;
+    try {
+      const cached = sessionStorage.getItem(PENDING_INVITE_STORAGE_KEY);
+      if (cached) {
+        return JSON.parse(cached);
+      }
+    } catch {}
     const params = new URLSearchParams(window.location.search);
     const invToken = params.get('invite');
     const projId = params.get('project');
+    const teamId = params.get('team');
     const rawRole = params.get('role');
-    if (invToken && projId) {
+    if (invToken) {
       const role: ProjectMemberRole =
         rawRole === 'owner' || rawRole === 'writer' || rawRole === 'viewer'
           ? rawRole
           : 'writer';
-      return { projectId: projId, token: invToken, role };
+      const inviteData = {
+        projectId: projId || undefined,
+        teamId: teamId || undefined,
+        token: invToken,
+        role,
+      };
+      try {
+        sessionStorage.setItem(
+          PENDING_INVITE_STORAGE_KEY,
+          JSON.stringify(inviteData)
+        );
+      } catch {}
+      return inviteData;
     }
     return null;
   });
@@ -528,7 +550,7 @@ export const App: React.FC = () => {
 
   // Auto-redirect to Inbox if user accesses a canceled or non-existent project/team via URL
   useEffect(() => {
-    if (initialRoute?.isCanceledOrNotFound && !showLandingPage) {
+    if (initialRoute?.isCanceledOrNotFound && !showLandingPage && !initialRoute?.isInvite) {
       setActiveSection('inbox');
       showToast('Project or team was canceled or not found. Redirected to Inbox.');
       if (typeof window !== 'undefined') {
@@ -1013,81 +1035,167 @@ export const App: React.FC = () => {
     return true;
   };
 
-  // Auto-join project when arriving via Invite Link (?project=...&invite=...&role=...)
+  // Auto-join project or team when arriving via Invite Link
   useEffect(() => {
     if (!pendingInvite || showLandingPage || !currentUser) return;
-    const targetProj = projects.find(
-      (p) =>
-        p.id === pendingInvite.projectId ||
-        p.share_token === pendingInvite.token
-    );
-    if (!targetProj) return;
 
-    if (targetProj.share_token !== pendingInvite.token) {
-      showToast('The project invite link is invalid or has expired.');
-      setPendingInvite(null);
-      if (typeof window !== 'undefined') {
-        window.history.replaceState({}, '', window.location.pathname);
+    // 1. Check if it's a Project Invite
+    const targetProj = projects.find((p) => {
+      if (pendingInvite.projectId) {
+        const num = Number(pendingInvite.projectId);
+        if (p.id.toLowerCase() === pendingInvite.projectId.toLowerCase()) return true;
+        if (p.code.toLowerCase() === pendingInvite.projectId.toLowerCase()) return true;
+        if (Number.isFinite(num) && p.odoo_project_id === num) return true;
       }
+      if (
+        p.share_token &&
+        pendingInvite.token &&
+        p.share_token.toLowerCase() === pendingInvite.token.toLowerCase()
+      ) {
+        return true;
+      }
+      return false;
+    });
+
+    if (targetProj) {
+      if (
+        targetProj.share_token &&
+        pendingInvite.token &&
+        targetProj.share_token.toLowerCase() !== pendingInvite.token.toLowerCase()
+      ) {
+        showToast('The project invite link is invalid or has expired.');
+        setPendingInvite(null);
+        try {
+          sessionStorage.removeItem(PENDING_INVITE_STORAGE_KEY);
+        } catch {}
+        if (typeof window !== 'undefined') {
+          window.history.replaceState({}, '', window.location.pathname);
+        }
+        return;
+      }
+
+      const existingList = targetProj.members || [];
+      const alreadyMember = existingList.find(
+        (m) =>
+          m.user_id === currentUser.id ||
+          m.email.toLowerCase() === currentUser.email.toLowerCase()
+      );
+
+      const roleOrder: Record<ProjectMemberRole, number> = {
+        viewer: 1,
+        writer: 2,
+        owner: 3,
+      };
+
+      let nextMembers = existingList;
+      let grantedRole: ProjectMemberRole = pendingInvite.role;
+
+      if (!alreadyMember) {
+        nextMembers = [
+          ...existingList,
+          {
+            user_id: currentUser.id,
+            email: currentUser.email,
+            full_name: currentUser.full_name,
+            avatar_initials: currentUser.avatar_initials,
+            role: pendingInvite.role,
+            added_at: todayISO,
+            added_by: 'Invite Link',
+          },
+        ];
+      } else if (roleOrder[pendingInvite.role] > roleOrder[alreadyMember.role]) {
+        nextMembers = existingList.map((m) =>
+          m.email.toLowerCase() === currentUser.email.toLowerCase() ||
+          m.user_id === currentUser.id
+            ? { ...m, role: pendingInvite.role }
+            : m
+        );
+      } else {
+        grantedRole = alreadyMember.role;
+      }
+
+      // Update project members
+      setProjects((prev) =>
+        prev.map((p) =>
+          p.id === targetProj.id ? { ...p, members: nextMembers } : p
+        )
+      );
+
+      // Automatically add currentUser to the Project's Team so canUserAccessTeam passes
+      if (targetProj.team_id) {
+        const teamId = targetProj.team_id;
+        setTeams((prev) =>
+          prev.map((t) => {
+            if (t.id !== teamId) return t;
+            const currentMembers = new Set(t.member_ids || []);
+            currentMembers.add(currentUser.id);
+            return { ...t, member_ids: Array.from(currentMembers) };
+          })
+        );
+        setActiveTeamId(teamId);
+        localStorage.setItem('tianlane_active_team', teamId);
+      }
+
+      setActiveProjectId(targetProj.id);
+      setActiveSection('projects');
+      setPendingInvite(null);
+      try {
+        sessionStorage.removeItem(PENDING_INVITE_STORAGE_KEY);
+      } catch {}
+
+      if (typeof window !== 'undefined') {
+        window.history.replaceState({}, '', `/project=${targetProj.code}`);
+      }
+
+      showToast(
+        `Joined project ${targetProj.code} · ${targetProj.name} with ${grantedRole.toUpperCase()} permissions!`
+      );
       return;
     }
 
-    const existingList = targetProj.members || [];
-    const alreadyMember = existingList.find(
-      (m) =>
-        m.user_id === currentUser.id ||
-        m.email.toLowerCase() === currentUser.email.toLowerCase()
-    );
+    // 2. Check if it's a Team Invite
+    if (pendingInvite.teamId || pendingInvite.token) {
+      const targetTeam = teams.find((t) => {
+        if (pendingInvite.teamId) {
+          if (t.id.toLowerCase() === pendingInvite.teamId.toLowerCase()) return true;
+          if (t.code.toLowerCase() === pendingInvite.teamId.toLowerCase()) return true;
+        }
+        if (t.id.toLowerCase() === pendingInvite.token.toLowerCase()) return true;
+        return false;
+      });
 
-    const roleOrder: Record<ProjectMemberRole, number> = {
-      viewer: 1,
-      writer: 2,
-      owner: 3,
-    };
+      if (targetTeam) {
+        setTeams((prev) =>
+          prev.map((t) => {
+            if (t.id !== targetTeam.id) return t;
+            const currentMembers = new Set(t.member_ids || []);
+            currentMembers.add(currentUser.id);
+            return { ...t, member_ids: Array.from(currentMembers) };
+          })
+        );
+        setActiveTeamId(targetTeam.id);
+        localStorage.setItem('tianlane_active_team', targetTeam.id);
+        setActiveSection('team');
+        setPendingInvite(null);
+        try {
+          sessionStorage.removeItem(PENDING_INVITE_STORAGE_KEY);
+        } catch {}
 
-    let nextMembers = existingList;
-    let grantedRole: ProjectMemberRole = pendingInvite.role;
+        if (typeof window !== 'undefined') {
+          window.history.replaceState({}, '', '/team');
+        }
 
-    if (!alreadyMember) {
-      nextMembers = [
-        ...existingList,
-        {
-          user_id: currentUser.id,
-          email: currentUser.email,
-          full_name: currentUser.full_name,
-          avatar_initials: currentUser.avatar_initials,
-          role: pendingInvite.role,
-          added_at: new Date().toISOString().slice(0, 10),
-          added_by: 'Invite Link',
-        },
-      ];
-    } else if (roleOrder[pendingInvite.role] > roleOrder[alreadyMember.role]) {
-      nextMembers = existingList.map((m) =>
-        m.email.toLowerCase() === currentUser.email.toLowerCase()
-          ? { ...m, role: pendingInvite.role }
-          : m
-      );
-    } else {
-      grantedRole = alreadyMember.role;
+        showToast(`Joined team ${targetTeam.icon || '🏢'} ${targetTeam.name}!`);
+        return;
+      }
     }
 
-    setProjects((prev) =>
-      prev.map((p) =>
-        p.id === targetProj.id ? { ...p, members: nextMembers } : p
-      )
-    );
-    setActiveProjectId(targetProj.id);
-    setActiveSection('projects');
+    showToast('The invite link is invalid or has expired.');
     setPendingInvite(null);
-
-    if (typeof window !== 'undefined') {
-      window.history.replaceState({}, '', window.location.pathname);
-    }
-
-    showToast(
-      `Joined project ${targetProj.code} · ${targetProj.name} with ${grantedRole.toUpperCase()} permissions!`
-    );
-  }, [pendingInvite, showLandingPage, projects, currentUser]);
+    try {
+      sessionStorage.removeItem(PENDING_INVITE_STORAGE_KEY);
+    } catch {}
+  }, [pendingInvite, showLandingPage, projects, teams, currentUser, todayISO]);
 
   const handleAuthenticatedUser = (
     authedUser: UserProfile,
@@ -1303,6 +1411,98 @@ export const App: React.FC = () => {
         };
       })
     );
+
+    // Synchronize members to the Project's Team so canUserAccessTeam passes & shows in TeamView
+    const targetProj = projects.find((p) => p.id === projectId);
+    if (targetProj && targetProj.team_id) {
+      const nextUserIds = nextMembers.map((m) => m.user_id);
+      setTeams((prev) =>
+        prev.map((t) => {
+          if (t.id !== targetProj.team_id) return t;
+          const currentMembers = new Set(t.member_ids || []);
+          let changed = false;
+          for (const uid of nextUserIds) {
+            if (!currentMembers.has(uid)) {
+              currentMembers.add(uid);
+              changed = true;
+            }
+          }
+          return changed ? { ...t, member_ids: Array.from(currentMembers) } : t;
+        })
+      );
+    }
+  };
+
+  const handleAddTeamMember = (
+    teamId: string,
+    userId: string,
+    isPm: boolean = false
+  ) => {
+    setTeams((prev) =>
+      prev.map((t) => {
+        if (t.id !== teamId) return t;
+        const memberIds = new Set(t.member_ids || []);
+        memberIds.add(userId);
+        const pmIds = new Set(t.pm_ids || []);
+        if (isPm) {
+          pmIds.add(userId);
+        }
+        return {
+          ...t,
+          member_ids: Array.from(memberIds),
+          pm_ids: Array.from(pmIds),
+        };
+      })
+    );
+    const targetUser = users.find((u) => u.id === userId);
+    const targetTeam = teams.find((t) => t.id === teamId);
+    showToast(
+      `Added ${targetUser?.full_name || userId} to team ${targetTeam?.name || ''}.`
+    );
+  };
+
+  const handleRemoveTeamMember = (teamId: string, userId: string) => {
+    setTeams((prev) =>
+      prev.map((t) => {
+        if (t.id !== teamId) return t;
+        return {
+          ...t,
+          member_ids: (t.member_ids || []).filter((id) => id !== userId),
+          pm_ids: (t.pm_ids || []).filter((id) => id !== userId),
+        };
+      })
+    );
+    const targetUser = users.find((u) => u.id === userId);
+    const targetTeam = teams.find((t) => t.id === teamId);
+    showToast(
+      `Removed ${targetUser?.full_name || userId} from team ${targetTeam?.name || ''}.`
+    );
+  };
+
+  const handleUpdateTeamMemberPmStatus = (
+    teamId: string,
+    userId: string,
+    isPm: boolean
+  ) => {
+    setTeams((prev) =>
+      prev.map((t) => {
+        if (t.id !== teamId) return t;
+        const pmIds = new Set(t.pm_ids || []);
+        if (isPm) {
+          pmIds.add(userId);
+        } else {
+          pmIds.delete(userId);
+        }
+        return {
+          ...t,
+          pm_ids: Array.from(pmIds),
+        };
+      })
+    );
+    const targetUser = users.find((u) => u.id === userId);
+    showToast(
+      `Updated ${targetUser?.full_name || userId} team status to ${isPm ? 'Team PM' : 'Member'}.`
+    );
   };
 
   const handleUpdateMemberProjectRole = (
@@ -1333,7 +1533,7 @@ export const App: React.FC = () => {
           full_name: targetUser.full_name,
           avatar_initials: targetUser.avatar_initials,
           role: newRole,
-          added_at: new Date().toISOString().slice(0, 10),
+          added_at: todayISO,
           added_by: currentUser?.full_name || 'James Nhan',
         },
       ];
@@ -1376,15 +1576,38 @@ export const App: React.FC = () => {
     showToast(`Created account for ${newUser.full_name} (${newUser.email}).`);
   };
 
-  const handleRegisterNewDirectoryUser = (newUser: UserProfile) => {
+  const handleRegisterNewDirectoryUser = async (newUser: UserProfile) => {
+    const username = newUser.email.split('@')[0];
+    const currentYear = new Date().getFullYear();
+    const defaultPassword = `${username}${currentYear}`;
+    const password_hash = hashPasswordSync(defaultPassword);
+    const completeUser: UserProfile = {
+      ...newUser,
+      password_hash: newUser.password_hash || password_hash,
+    };
+
     setUsers((prev) => {
       if (
-        prev.some((u) => u.email.toLowerCase() === newUser.email.toLowerCase())
+        prev.some((u) => u.email.toLowerCase() === completeUser.email.toLowerCase())
       ) {
         return prev;
       }
-      return [...prev, newUser];
+      return [...prev, completeUser];
     });
+
+    try {
+      const apiBase = getApiBaseUrl();
+      await fetch(`${apiBase}/api/users/profile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: completeUser.email,
+          fullName: completeUser.full_name,
+          role: completeUser.role,
+          password_hash: completeUser.password_hash,
+        }),
+      });
+    } catch {}
   };
 
   const syncMilestoneProgress = (
@@ -2344,6 +2567,10 @@ export const App: React.FC = () => {
                   }}
                   onUpdateMemberRole={handleUpdateMemberRole}
                   onUpdateProjectMemberRole={handleUpdateMemberProjectRole}
+                  onAddTeamMember={handleAddTeamMember}
+                  onRemoveTeamMember={handleRemoveTeamMember}
+                  onUpdateTeamMemberPmStatus={handleUpdateTeamMemberPmStatus}
+                  onRegisterNewUser={handleRegisterNewDirectoryUser}
                   onOpenCreateTeam={() => setIsCreateTeamOpen(true)}
                   onDeleteTeam={handleDeleteTeam}
                   onOpenMembersModal={() => setIsMembersModalOpen(true)}

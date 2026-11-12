@@ -119,17 +119,36 @@ export const ProjectMembersModal: React.FC<ProjectMembersModalProps> = ({
     typeof window !== 'undefined'
       ? window.location.origin
       : 'https://tianlane.huynhthiennhancutehihi.workers.dev';
+  const token =
+    project.share_token ||
+    `tl-${project.code.toLowerCase().replace(/[^a-z0-9]/g, '')}-default`;
   const shareUrl = `${origin}/?project=${encodeURIComponent(
     project.id
-  )}&invite=${encodeURIComponent(project.share_token)}&role=${encodeURIComponent(
+  )}&invite=${encodeURIComponent(token)}&role=${encodeURIComponent(
     inviteLinkRole
   )}`;
 
   const handleCopyInviteLink = async () => {
     try {
-      await navigator.clipboard.writeText(shareUrl);
-      setCopiedLink(true);
-      setTimeout(() => setCopiedLink(false), 2500);
+      let copied = false;
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(shareUrl);
+        copied = true;
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = shareUrl;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        copied = document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
+      if (copied) {
+        setCopiedLink(true);
+        setTimeout(() => setCopiedLink(false), 2500);
+      }
     } catch {
       // Fallback
     }
@@ -490,21 +509,25 @@ export const ProjectMembersModal: React.FC<ProjectMembersModalProps> = ({
                 </span>
 
                 {unaddedDirectoryUsers.length > 0 && (
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[11px] text-[#6E717A]">Quick add:</span>
-                    {unaddedDirectoryUsers.slice(0, 3).map((u) => (
-                      <button
-                        key={u.id}
-                        type="button"
-                        onClick={() => {
-                          setNewEmail(u.email);
-                          setNewFullName(u.full_name);
-                        }}
-                        className="px-2 py-0.5 rounded-full bg-[#F1F3F7] hover:bg-[#EEF3FB] text-[11px] text-[#121317] hover:text-[#0A4595] transition-colors"
-                      >
-                        + {u.full_name}
-                      </button>
-                    ))}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <select
+                      value=""
+                      onChange={(e) => {
+                        const hit = directoryUsers.find((u) => u.id === e.target.value);
+                        if (hit) {
+                          setNewEmail(hit.email);
+                          setNewFullName(hit.full_name);
+                        }
+                      }}
+                      className="px-2.5 py-1 rounded-xl border border-[#E6E8EE] bg-[#FAFBFD] text-[11.5px] text-[#45474D] focus:border-[#0A4595] outline-none cursor-pointer"
+                    >
+                      <option value="">+ Choose colleague from directory...</option>
+                      {unaddedDirectoryUsers.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.full_name} ({u.email})
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 )}
               </div>

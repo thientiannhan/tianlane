@@ -14,6 +14,7 @@ import {
   Trash2,
   UserCheck,
   UserPlus,
+  Users,
   X,
 } from 'lucide-react';
 import {
@@ -698,6 +699,10 @@ interface TeamViewProps {
     targetUser: UserProfile,
     newRole: ProjectMemberRole
   ) => void;
+  onAddTeamMember?: (teamId: string, userId: string, isPm?: boolean) => void;
+  onRemoveTeamMember?: (teamId: string, userId: string) => void;
+  onUpdateTeamMemberPmStatus?: (teamId: string, userId: string, isPm: boolean) => void;
+  onRegisterNewUser?: (newUser: UserProfile) => void;
   onOpenCreateTeam?: () => void;
   onDeleteTeam?: (teamId: string) => void;
   onOpenMembersModal?: () => void;
@@ -723,6 +728,10 @@ export const TeamView: React.FC<TeamViewProps> = ({
   onFilterByMember,
   onUpdateMemberRole,
   onUpdateProjectMemberRole,
+  onAddTeamMember,
+  onRemoveTeamMember,
+  onUpdateTeamMemberPmStatus,
+  onRegisterNewUser,
   onOpenCreateTeam,
   onDeleteTeam,
   onOpenMembersModal,
@@ -733,11 +742,110 @@ export const TeamView: React.FC<TeamViewProps> = ({
   const isPm = isUserTeamPM(activeTeam, currentUser);
   const [showAllCompanyUsers, setShowAllCompanyUsers] = useState(false);
 
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [addSelectedUserId, setAddSelectedUserId] = useState('');
+  const [addEmail, setAddEmail] = useState('');
+  const [addFullName, setAddFullName] = useState('');
+  const [addRole, setAddRole] = useState<UserProfile['role']>('Senior Dev');
+  const [addIsPm, setAddIsPm] = useState(false);
+  const [copiedTeamLink, setCopiedTeamLink] = useState(false);
+  const [teamActionError, setTeamActionError] = useState<string | null>(null);
+
+  const unaddedTeamUsers = useMemo(() => {
+    if (!activeTeam) return [];
+    const memberSet = new Set([
+      ...(activeTeam.member_ids || []),
+      ...(activeTeam.pm_ids || []),
+    ]);
+    return users.filter((u) => !memberSet.has(u.id));
+  }, [users, activeTeam]);
+
+  const handleCopyTeamInvite = async () => {
+    if (!activeTeam) return;
+    const origin =
+      typeof window !== 'undefined'
+        ? window.location.origin
+        : 'https://tianlane.huynhthiennhancutehihi.workers.dev';
+    const link = `${origin}/?team=${encodeURIComponent(
+      activeTeam.id
+    )}&invite=${encodeURIComponent(activeTeam.id)}`;
+    try {
+      let ok = false;
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(link);
+        ok = true;
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = link;
+        ta.style.position = 'fixed';
+        ta.style.left = '-999999px';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      if (ok) {
+        setCopiedTeamLink(true);
+        setTimeout(() => setCopiedTeamLink(false), 2500);
+      }
+    } catch {}
+  };
+
+  const handleAddTeamMemberSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setTeamActionError(null);
+    if (!activeTeam || !onAddTeamMember) return;
+
+    let targetUserId = addSelectedUserId;
+    if (!targetUserId) {
+      const cleanEmail = addEmail.trim().toLowerCase();
+      if (!cleanEmail || !cleanEmail.includes('@')) {
+        setTeamActionError('Please enter a valid email address.');
+        return;
+      }
+      const existing = users.find((u) => u.email.toLowerCase() === cleanEmail);
+      if (existing) {
+        targetUserId = existing.id;
+      } else {
+        targetUserId = `usr-${cleanEmail.split('@')[0].replace(/[^a-z0-9]/g, '-')}`;
+        const initials =
+          (addFullName.trim() || cleanEmail.split('@')[0])
+            .split(/\s+/)
+            .map((w) => w[0]?.toUpperCase())
+            .join('')
+            .slice(0, 2) || 'LT';
+        const newUser: UserProfile = {
+          id: targetUserId,
+          microsoft_entra_id: `entra-logtechub-${targetUserId}`,
+          email: cleanEmail,
+          full_name: addFullName.trim() || cleanEmail.split('@')[0],
+          avatar_initials: initials,
+          role: addRole,
+          teams_status: 'available',
+          teams_webhook_url: 'https://outlook.office.com/webhook/logtechub-teams',
+        };
+        if (onRegisterNewUser) {
+          onRegisterNewUser(newUser);
+        }
+      }
+    }
+
+    if (targetUserId) {
+      onAddTeamMember(activeTeam.id, targetUserId, addIsPm);
+      setShowAddMemberModal(false);
+      setAddSelectedUserId('');
+      setAddEmail('');
+      setAddFullName('');
+      setAddIsPm(false);
+    }
+  };
+
   // If in a team, default to team members unless Admin toggles to view whole directory
   const displayedUsers =
     !activeTeam || showAllCompanyUsers
       ? users
-      : users.filter((u) => activeTeam.member_ids?.includes(u.id));
+      : users.filter((u) => activeTeam.member_ids?.includes(u.id) || activeTeam.pm_ids?.includes(u.id));
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -763,11 +871,52 @@ export const TeamView: React.FC<TeamViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Add Member button for Team PM or Admin */}
+          {(isAdmin || isPm) && onAddTeamMember && activeTeam && (
+            <button
+              type="button"
+              onClick={() => {
+                setTeamActionError(null);
+                setAddSelectedUserId('');
+                setAddEmail('');
+                setAddFullName('');
+                setAddIsPm(false);
+                setShowAddMemberModal(true);
+              }}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#0A4595] hover:bg-[#1264D4] text-white text-[12px] font-medium transition-colors shadow-clean-xs cursor-pointer"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>+ Add Member</span>
+            </button>
+          )}
+
+          {/* Team Invite Link button */}
+          {(isAdmin || isPm) && activeTeam && (
+            <button
+              type="button"
+              onClick={handleCopyTeamInvite}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-[#B7CDF5] bg-[#EEF3FB] hover:bg-[#E0EAFA] text-[#0A4595] text-[12px] font-medium transition-colors cursor-pointer"
+              title="Copy invite link to this team"
+            >
+              {copiedTeamLink ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-[#188038]" />
+                  <span className="text-[#188038]">Copied Team Link!</span>
+                </>
+              ) : (
+                <>
+                  <Link2 className="w-3.5 h-3.5" />
+                  <span>Team Invite Link</span>
+                </>
+              )}
+            </button>
+          )}
+
           {isAdmin && onOpenCreateTeam && (
             <button
               type="button"
               onClick={onOpenCreateTeam}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#0A4595] hover:bg-[#1264D4] text-white text-[12px] font-medium transition-colors shadow-clean-xs"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-[#E6E8EE] hover:border-[#B7BFD9] bg-white text-[12px] font-medium text-[#45474D] hover:text-[#121317] transition-colors shadow-clean-xs cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>+ Create Team</span>
@@ -942,6 +1091,36 @@ export const TeamView: React.FC<TeamViewProps> = ({
                   Tasks
                 </button>
 
+                {/* Team PM / Member Role Toggle for Team Admin / PM */}
+                {activeTeam && (isAdmin || isPm) && onUpdateTeamMemberPmStatus && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onUpdateTeamMemberPmStatus(activeTeam.id, member.id, !isTeamLead)
+                    }
+                    className={`px-2 py-0.5 rounded text-[10.5px] font-semibold border transition-colors cursor-pointer ${
+                      isTeamLead
+                        ? 'bg-[#EEF3FB] text-[#0A4595] border-[#B7CDF5] hover:bg-[#E0EAFA]'
+                        : 'bg-[#FAFBFD] text-[#6E717A] border-[#E6E8EE] hover:bg-[#EEF3FB] hover:text-[#0A4595]'
+                    }`}
+                    title={isTeamLead ? 'Click to set as regular member' : 'Click to promote to Team PM'}
+                  >
+                    {isTeamLead ? 'PM Team' : 'Member'}
+                  </button>
+                )}
+
+                {/* Remove member from team */}
+                {activeTeam && (isAdmin || isPm) && onRemoveTeamMember && !isCurrent && (
+                  <button
+                    type="button"
+                    onClick={() => onRemoveTeamMember(activeTeam.id, member.id)}
+                    className="p-1.5 rounded-lg text-[#6E717A] hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                    title={`Remove ${member.full_name} from team ${activeTeam.name}`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+
                 {isCurrent && (
                   <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#EEF3FB] text-[#0A4595]">
                     Active session
@@ -952,6 +1131,170 @@ export const TeamView: React.FC<TeamViewProps> = ({
           );
         })}
       </div>
+
+      {/* Modal: Add Member to Active Team */}
+      {showAddMemberModal && activeTeam && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="w-full max-w-lg rounded-2xl bg-white border border-[#E6E8EE] shadow-clean-lg overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="px-6 py-4 border-b border-[#E6E8EE] bg-[#FAFBFD] flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-[#EEF3FB] text-[#0A4595] flex items-center justify-center">
+                  <UserPlus className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-[15px] font-semibold text-[#121317]">
+                    Add Member to {activeTeam.icon || '🏢'} {activeTeam.name}
+                  </h3>
+                  <p className="text-[12px] text-[#6E717A]">
+                    Select from directory or invite a new member by email
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddMemberModal(false)}
+                className="p-1 rounded-lg text-[#6E717A] hover:text-[#121317] hover:bg-[#F1F3F7]"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddTeamMemberSubmit} className="p-6 space-y-4">
+              {teamActionError && (
+                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-[12px]">
+                  {teamActionError}
+                </div>
+              )}
+
+              {/* Option 1: Choose from unadded directory users */}
+              {unaddedTeamUsers.length > 0 && (
+                <div>
+                  <label className="block text-[12px] font-medium text-[#45474D] mb-1.5">
+                    Select Existing Colleague
+                  </label>
+                  <select
+                    value={addSelectedUserId}
+                    onChange={(e) => {
+                      const uid = e.target.value;
+                      setAddSelectedUserId(uid);
+                      const hit = users.find((u) => u.id === uid);
+                      if (hit) {
+                        setAddEmail(hit.email);
+                        setAddFullName(hit.full_name);
+                        setAddRole(hit.role);
+                      } else {
+                        setAddEmail('');
+                        setAddFullName('');
+                      }
+                    }}
+                    className="w-full px-3 py-2 rounded-xl border border-[#E6E8EE] focus:border-[#0A4595] text-[12.5px] bg-white outline-none cursor-pointer"
+                  >
+                    <option value="">-- Choose from company directory --</option>
+                    {unaddedTeamUsers.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.full_name} ({u.email}) · {u.role}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Option 2: Or enter new email / custom info */}
+              {!addSelectedUserId && (
+                <div className="space-y-3 pt-1 border-t border-[#F1F3F7]">
+                  <div>
+                    <label className="block text-[12px] font-medium text-[#45474D] mb-1">
+                      Or Invite by Email
+                    </label>
+                    <input
+                      type="email"
+                      value={addEmail}
+                      onChange={(e) => {
+                        setAddEmail(e.target.value);
+                        setTeamActionError(null);
+                      }}
+                      placeholder="e.g. member@logtechub.com"
+                      className="w-full px-3 py-2 rounded-xl border border-[#E6E8EE] focus:border-[#0A4595] text-[12.5px] outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[12px] font-medium text-[#45474D] mb-1">
+                      Full Name
+                    </label>
+                    <input
+                      type="text"
+                      value={addFullName}
+                      onChange={(e) => setAddFullName(e.target.value)}
+                      placeholder="Full Name"
+                      className="w-full px-3 py-2 rounded-xl border border-[#E6E8EE] focus:border-[#0A4595] text-[12.5px] outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[12px] font-medium text-[#45474D] mb-1">
+                      Position Title
+                    </label>
+                    <select
+                      value={addRole}
+                      onChange={(e) =>
+                        setAddRole(e.target.value as UserProfile['role'])
+                      }
+                      className="w-full px-3 py-2 rounded-xl border border-[#E6E8EE] focus:border-[#0A4595] text-[12.5px] bg-white outline-none"
+                    >
+                      {POSITION_CHOICES.map((pos) => (
+                        <option key={pos} value={pos}>
+                          {pos}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* Team Role Option: PM or Member */}
+              <div className="p-3 rounded-xl bg-[#FAFBFD] border border-[#E6E8EE]">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={addIsPm}
+                    onChange={(e) => setAddIsPm(e.target.checked)}
+                    className="w-4 h-4 text-[#0A4595] rounded border-[#CBD0DE]"
+                  />
+                  <div>
+                    <span className="text-[12.5px] font-semibold text-[#121317]">
+                      Grant Team PM (Lead) Role
+                    </span>
+                    <p className="text-[11.5px] text-[#6E717A]">
+                      Allows user to manage team members, invite colleagues, and adjust access
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddMemberModal(false)}
+                  className="px-4 py-2 rounded-xl border border-[#E6E8EE] text-[12.5px] font-medium text-[#45474D] hover:bg-[#F7F8FA] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl bg-[#0A4595] hover:bg-[#1264D4] text-white text-[12.5px] font-medium transition-colors shadow-clean-xs"
+                >
+                  Add to Team
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

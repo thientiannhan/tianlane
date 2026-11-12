@@ -475,4 +475,27 @@ assert.equal(formatMonthDayBadge('2026-11-12'), 'NOV 12');
 assert.equal(formatMonthDayBadge('2026-12-05'), 'DEC 5');
 assert.equal(formatMonthDayBadge('2027-01-01'), 'JAN 1');
 
-console.log('✓ All Tianlane scheduleEngine, RBAC, Multi-Team Access, R2 Presigner, Route Engine, Odoo AI Tags, Multi-Assignees, Soft Deletion, Inbox Redirect & UTC+7 Timeline Sync assertions passed.');
+// 22. Verify Project & Team Invite Route Parsing & Multi-Team Access on Invite
+const projectInviteRoute = parseRoute(
+  '/',
+  '?project=proj-efms-pl071026&invite=tl-pl071026-efms&role=writer',
+  '',
+  SEED_PROJECTS,
+  SEED_TEAMS
+);
+assert.equal(projectInviteRoute.isInvite, true, 'Must identify invite route');
+assert.equal(projectInviteRoute.isCanceledOrNotFound, false, 'Invite route must not be marked canceled/not found');
+assert.equal(projectInviteRoute.projectId, 'proj-efms-pl071026');
+
+const teamInviteRoute = parseRoute(
+  '/',
+  '?team=team-efms&invite=team-efms',
+  '',
+  SEED_PROJECTS,
+  SEED_TEAMS
+);
+assert.equal(teamInviteRoute.isInvite, true);
+assert.equal(teamInviteRoute.isCanceledOrNotFound, false);
+assert.equal(teamInviteRoute.teamId, 'team-efms');
+
+console.log('✓ All Tianlane scheduleEngine, RBAC, Multi-Team Access, R2 Presigner, Route Engine, Odoo AI Tags, Multi-Assignees, Soft Deletion, Inbox Redirect, UTC+7 Timeline Sync & Invite/Add Member assertions passed.');

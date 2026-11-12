@@ -9,7 +9,7 @@ import { authenticateLogtechubUser } from '../data/seedData.ts';
 import { AntigravityHeroField } from './AntigravityHeroField.tsx';
 
 interface PendingInviteInfo {
-  projectId: string;
+  projectId?: string;
   projectName?: string;
   projectCode?: string;
   token: string;

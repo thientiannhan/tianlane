@@ -89,10 +89,14 @@ export function parseRoute(
       return false;
     });
 
-    if (!matchedProject || matchedProject.status === 'canceled') {
+    const isInviteParam = Boolean(searchParams.get('invite'));
+    if (matchedProject && matchedProject.status === 'canceled') {
       section = 'inbox';
       isCanceledOrNotFound = true;
       matchedProject = undefined;
+    } else if (!matchedProject && !isInviteParam) {
+      section = 'inbox';
+      isCanceledOrNotFound = true;
     }
   }
 
