@@ -136,7 +136,8 @@ export const App: React.FC = () => {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       try {
-        const parsed = (JSON.parse(raw).projects ?? SEED_PROJECTS) as Project[];
+        const rawParsed = JSON.parse(raw).projects ?? SEED_PROJECTS;
+        const parsed = (Array.isArray(rawParsed) ? rawParsed.filter((p) => p && typeof p === 'object' && p.id) : SEED_PROJECTS) as Project[];
         const mapped = parsed.map((p) => {
           if (p.code === 'PL071026' || p.code === '26-11' || p.id.includes('efms')) {
             return { ...p, team_id: 'team-efms' };
@@ -163,7 +164,8 @@ export const App: React.FC = () => {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       try {
-        const parsed = (JSON.parse(raw).milestones ?? SEED_MILESTONES) as ProjectMilestone[];
+        const rawParsed = JSON.parse(raw).milestones ?? SEED_MILESTONES;
+        const parsed = (Array.isArray(rawParsed) ? rawParsed.filter((m) => m && typeof m === 'object' && m.id) : SEED_MILESTONES) as ProjectMilestone[];
         const existingIds = new Set(parsed.map((m) => m.id));
         const missingSeeds = SEED_MILESTONES.filter((m) => !existingIds.has(m.id));
         return [...parsed, ...missingSeeds];
@@ -178,7 +180,8 @@ export const App: React.FC = () => {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       try {
-        const parsed = (JSON.parse(raw).tasks ?? SEED_TASKS) as ProjectTask[];
+        const rawParsed = JSON.parse(raw).tasks ?? SEED_TASKS;
+        const parsed = (Array.isArray(rawParsed) ? rawParsed.filter((t) => t && typeof t === 'object' && t.id) : SEED_TASKS) as ProjectTask[];
         const existingIds = new Set(parsed.map((t) => t.id));
         const missingSeeds = SEED_TASKS.filter((t) => !existingIds.has(t.id));
         return [...parsed, ...missingSeeds];
@@ -255,7 +258,8 @@ export const App: React.FC = () => {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       try {
-        const parsed = (JSON.parse(raw).users ?? SEED_USERS) as UserProfile[];
+        const rawParsed = JSON.parse(raw).users ?? SEED_USERS;
+        const parsed = (Array.isArray(rawParsed) ? rawParsed.filter((u) => u && typeof u === 'object' && u.id) : SEED_USERS) as UserProfile[];
         return parsed.map((u) => {
           const sanitized = { ...u };
           delete (sanitized as Record<string, unknown>).password;
@@ -273,7 +277,8 @@ export const App: React.FC = () => {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       try {
-        const parsed = (JSON.parse(raw).teams ?? SEED_TEAMS) as Team[];
+        const rawParsed = JSON.parse(raw).teams ?? SEED_TEAMS;
+        const parsed = (Array.isArray(rawParsed) ? rawParsed.filter((t) => t && typeof t === 'object' && t.id) : SEED_TEAMS) as Team[];
         const filtered = parsed.filter((t) => !deletedIds.has(t.id));
         const existingIds = new Set(filtered.map((t) => t.id));
         const missingSeeds = SEED_TEAMS.filter(
@@ -487,8 +492,11 @@ export const App: React.FC = () => {
           skipNextCloudSaveRef.current = true;
           const deletedIds = new Set(getDeletedTeamIds());
 
+          const validRemoteProjects = (remote.projects as Project[]).filter(
+            (p) => p && typeof p === 'object' && p.id
+          );
           const projMap = new Map<string, Project>(
-            (remote.projects as Project[]).map((p: Project) => [p.id, p])
+            validRemoteProjects.map((p: Project) => [p.id, p])
           );
           for (const sp of SEED_PROJECTS) {
             if (!projMap.has(sp.id)) projMap.set(sp.id, sp);
@@ -496,10 +504,11 @@ export const App: React.FC = () => {
           setProjects(Array.from(projMap.values()));
 
           if (Array.isArray(remote.milestones)) {
+            const validRemoteMs = (remote.milestones as ProjectMilestone[]).filter(
+              (m) => m && typeof m === 'object' && m.id
+            );
             const msMap = new Map<string, ProjectMilestone>(
-              (remote.milestones as ProjectMilestone[]).map(
-                (m: ProjectMilestone) => [m.id, m]
-              )
+              validRemoteMs.map((m: ProjectMilestone) => [m.id, m])
             );
             for (const sm of SEED_MILESTONES) {
               if (!msMap.has(sm.id)) msMap.set(sm.id, sm);
@@ -507,8 +516,11 @@ export const App: React.FC = () => {
             setMilestones(Array.from(msMap.values()));
           }
           if (Array.isArray(remote.tasks)) {
+            const validRemoteTasks = (remote.tasks as ProjectTask[]).filter(
+              (t) => t && typeof t === 'object' && t.id
+            );
             const tMap = new Map<string, ProjectTask>(
-              (remote.tasks as ProjectTask[]).map((t: ProjectTask) => [t.id, t])
+              validRemoteTasks.map((t: ProjectTask) => [t.id, t])
             );
             for (const st of SEED_TASKS) {
               if (!tMap.has(st.id)) tMap.set(st.id, st);
@@ -522,8 +534,11 @@ export const App: React.FC = () => {
             setRevisionLogs(remote.revisionLogs);
           if (Array.isArray(remote.templates)) setTemplates(remote.templates);
           if (Array.isArray(remote.teams) && remote.teams.length > 0) {
+            const validRemoteTeams = (remote.teams as Team[]).filter(
+              (t) => t && typeof t === 'object' && t.id
+            );
             const teamMap = new Map<string, Team>(
-              (remote.teams as Team[]).map((t: Team) => [t.id, t])
+              validRemoteTeams.map((t: Team) => [t.id, t])
             );
             for (const st of SEED_TEAMS) {
               if (!teamMap.has(st.id) && !deletedIds.has(st.id)) {
@@ -668,7 +683,7 @@ export const App: React.FC = () => {
   useEffect(() => {
     if (!activeProjectId) return;
     const target = projects.find((p) => p.id === activeProjectId);
-    if (target && target.team_id !== activeTeamId) {
+    if (target && target.team_id && target.team_id !== activeTeamId) {
       setActiveTeamId(target.team_id);
       localStorage.setItem('tianlane_active_team', target.team_id);
     }
@@ -755,7 +770,7 @@ export const App: React.FC = () => {
 
   const handleSelectProject = (projectId: string) => {
     const target = projects.find((p) => p.id === projectId);
-    if (target && target.team_id !== activeTeamId) {
+    if (target && target.team_id && target.team_id !== activeTeamId) {
       setActiveTeamId(target.team_id);
       localStorage.setItem('tianlane_active_team', target.team_id);
     }
@@ -1103,7 +1118,7 @@ export const App: React.FC = () => {
       ...updatedUser,
       password_hash: passwordHash ?? updatedUser.password_hash,
     };
-    delete (userToSave as Record<string, unknown>).password;
+    delete (userToSave as unknown as Record<string, unknown>).password;
     setCurrentUser(userToSave);
     persistAuthUser(userToSave);
     setUsers((prev) =>
@@ -2392,7 +2407,7 @@ export const App: React.FC = () => {
       )}
 
       {/* Project Share, Invite Link & Role Permissions Modal */}
-      {activeProject && (
+      {activeProject && currentUser && (
         <ProjectMembersModal
           isOpen={isMembersModalOpen}
           project={activeProject}
@@ -2443,21 +2458,25 @@ export const App: React.FC = () => {
       />
 
       {/* Edit Profile & Password Modal */}
-      <UserProfileModal
-        isOpen={isUserProfileOpen}
-        currentUser={currentUser}
-        onClose={() => setIsUserProfileOpen(false)}
-        onSave={handleSaveProfile}
-      />
+      {currentUser && (
+        <UserProfileModal
+          isOpen={isUserProfileOpen}
+          currentUser={currentUser}
+          onClose={() => setIsUserProfileOpen(false)}
+          onSave={handleSaveProfile}
+        />
+      )}
 
       {/* Create Team Modal (Admin) */}
-      <CreateTeamModal
-        isOpen={isCreateTeamOpen}
-        users={users}
-        currentUser={currentUser}
-        onClose={() => setIsCreateTeamOpen(false)}
-        onCreateTeam={handleCreateTeam}
-      />
+      {currentUser && (
+        <CreateTeamModal
+          isOpen={isCreateTeamOpen}
+          users={users}
+          currentUser={currentUser}
+          onClose={() => setIsCreateTeamOpen(false)}
+          onCreateTeam={handleCreateTeam}
+        />
+      )}
 
       {/* PWA Desktop Installation Modal */}
       <PwaInstallModal

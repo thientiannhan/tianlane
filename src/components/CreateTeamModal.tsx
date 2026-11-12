@@ -5,7 +5,7 @@ import type { Team, UserProfile } from '../types.ts';
 interface CreateTeamModalProps {
   isOpen: boolean;
   users: UserProfile[];
-  currentUser: UserProfile;
+  currentUser?: UserProfile | null;
   onClose: () => void;
   onCreateTeam: (team: Team) => void;
 }
@@ -23,10 +23,12 @@ export const CreateTeamModal: React.FC<CreateTeamModalProps> = ({
   const [code, setCode] = useState('');
   const [description, setDescription] = useState('');
   const [icon, setIcon] = useState('🏢');
-  const [selectedPmId, setSelectedPmId] = useState<string>(currentUser.id);
-  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([
-    currentUser.id,
-  ]);
+  const [selectedPmId, setSelectedPmId] = useState<string>(
+    currentUser?.id || users[0]?.id || ''
+  );
+  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>(
+    currentUser?.id ? [currentUser.id] : users[0]?.id ? [users[0].id] : []
+  );
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   if (!isOpen) return null;

@@ -295,7 +295,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <div className="max-h-56 overflow-y-auto py-1 space-y-0.5">
                 {accessibleTeams.map((team) => {
                   const isSelected = team.id === activeTeam?.id;
-                  const isPm = team.pm_ids?.includes(currentUser.id);
+                  const isPm = currentUser ? Boolean(team.pm_ids?.includes(currentUser.id)) : false;
                   return (
                     <div
                       key={team.id}
@@ -589,7 +589,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="space-y-1">
               {accessibleTeams.map((team) => {
                 const isActive = team.id === activeTeam?.id;
-                const isPm = team.pm_ids?.includes(currentUser.id);
+                const isPm = currentUser ? Boolean(team.pm_ids?.includes(currentUser.id)) : false;
                 return (
                   <div key={team.id} className="space-y-0.5">
                     <div

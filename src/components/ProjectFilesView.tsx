@@ -23,13 +23,13 @@ import {
 
 interface ProjectFilesViewProps {
   projects: Project[];
-  activeProject: Project;
+  activeProject: Project | null;
   onSelectProject: (projectId: string) => void;
   milestones: ProjectMilestone[];
   tasks: ProjectTask[];
   documents: ProjectDocument[];
   docRequirements: ProjectDocRequirement[];
-  currentUser: UserProfile;
+  currentUser: UserProfile | null;
   referenceTodayISO: string;
   onAddDocument: (doc: Omit<ProjectDocument, 'id' | 'uploaded_at'>) => void;
   onDeleteDocument: (docId: string) => void;
@@ -159,9 +159,9 @@ export const ProjectFilesView: React.FC<ProjectFilesViewProps> = ({
     const cleanName = uploadFileName.trim();
     if (!cleanName) return;
 
-    let finalUrl = `https://storage.tianlane.vn/buckets/${activeProject.code}/${encodeURIComponent(
-      cleanName
-    )}`;
+    let finalUrl = activeProject
+      ? `https://storage.tianlane.vn/buckets/${activeProject.code}/${encodeURIComponent(cleanName)}`
+      : '';
 
     try {
       const apiBase = getApiBaseUrl();
@@ -172,7 +172,7 @@ export const ProjectFilesView: React.FC<ProjectFilesViewProps> = ({
           fileName: cleanName,
           contentType: selectedRawFile?.type || 'application/octet-stream',
           fileSizeBytes: uploadFileSize,
-          projectId: activeProject.code,
+          projectId: activeProject?.code || '',
         }),
       });
       if (presignRes.ok) {
@@ -196,7 +196,7 @@ export const ProjectFilesView: React.FC<ProjectFilesViewProps> = ({
     }
 
     onAddDocument({
-      project_id: activeProject.id,
+      project_id: activeProject?.id || '',
       milestone_id: uploadMilestoneId || null,
       task_id: uploadTaskId || null,
       file_name: cleanName,
@@ -204,7 +204,7 @@ export const ProjectFilesView: React.FC<ProjectFilesViewProps> = ({
       file_size_bytes: uploadFileSize,
       version_tag: uploadVersion.trim() || 'v1.0',
       doc_type: uploadDocType.trim() || 'Blueprint',
-      uploaded_by: currentUser.full_name,
+      uploaded_by: currentUser?.full_name || 'James Nhan',
     });
 
     setShowUploadModal(false);
@@ -218,8 +218,8 @@ export const ProjectFilesView: React.FC<ProjectFilesViewProps> = ({
     if (!cleanType) return;
 
     const payload: ProjectDocRequirement = {
-      id: editingReqId ?? `req-${activeProject.id}-${Date.now()}`,
-      project_id: activeProject.id,
+      id: editingReqId ?? `req-${activeProject?.id || 'gen'}-${Date.now()}`,
+      project_id: activeProject?.id || '',
       doc_type: cleanType,
       icon: reqIcon,
       accent_color: reqColor,
@@ -297,7 +297,7 @@ export const ProjectFilesView: React.FC<ProjectFilesViewProps> = ({
                   setFilterMilestoneId('all');
                 }}
                 className={`px-3 py-1 rounded-full text-[12px] font-medium transition-colors ${
-                  p.id === activeProject.id
+                  p.id === activeProject?.id
                     ? 'bg-white text-[#0A4595] shadow-clean-xs'
                     : 'text-[#45474D] hover:text-[#121317]'
                 }`}
@@ -849,7 +849,7 @@ export const ProjectFilesView: React.FC<ProjectFilesViewProps> = ({
                   Upload Project Deliverable
                 </h3>
                 <p className="text-[12px] text-[#45474D]">
-                  Attach file to {activeProject.code} · {activeProject.name}
+                  Attach file to {activeProject?.code || ''} · {activeProject?.name || ''}
                 </p>
               </div>
               <button

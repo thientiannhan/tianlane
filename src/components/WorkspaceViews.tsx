@@ -171,7 +171,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
  * 2. AGENT VIEW (Clean First-Class Workspace View for the 6 MCP Actions)
  * ============================================================================ */
 interface AgentViewProps {
-  project: Project;
+  project: Project | null;
   milestones: ProjectMilestone[];
   tasks: ProjectTask[];
   users: UserProfile[];
@@ -325,7 +325,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
         const delayed = milestones.filter(
           (m) => diffDaysISO(m.planned_end, m.actual_end) > 0
         );
-        const output = `${project.code}: ${milestones.length} milestones (${delayed.length} delayed). Open gate blockers: ${openBlockers.length}. Linked to Tracker #${project.odoo_project_id}: ${
+        const output = `${project?.code || 'PROJECT'}: ${milestones.length} milestones (${delayed.length} delayed). Open gate blockers: ${openBlockers.length}. Linked to Tracker #${project?.odoo_project_id || 0}: ${
           tasks.length - unlinkedTasks.length
         }/${tasks.length} tasks.`;
 
@@ -340,7 +340,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
       }
 
       if (toolName === 'send_project_reminder_notification') {
-        const output = `Sent Teams & Email reminders to ${users.length} members for ${openTasks.length} active tasks in ${project.code}.`;
+        const output = `Sent Teams & Email reminders to ${users.length} members for ${openTasks.length} active tasks in ${project?.code || 'project'}.`;
         onAppendMcpLog({
           tool_name: toolName,
           prompt_summary: promptInput,
@@ -355,7 +355,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
         const done = tasks.filter((t) => t.kanban_status === 'done').length;
         const pct =
           tasks.length > 0 ? Math.round((done / tasks.length) * 100) : 0;
-        const output = `Weekly report sent for ${project.code} (${pct}% complete, ${done}/${tasks.length} tasks done across ${milestones.length} milestones).`;
+        const output = `Weekly report sent for ${project?.code || 'project'} (${pct}% complete, ${done}/${tasks.length} tasks done across ${milestones.length} milestones).`;
         onAppendMcpLog({
           tool_name: toolName,
           prompt_summary: promptInput,
@@ -394,7 +394,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
           command: 'node',
           args: ['mcp/tianlane-mcp-server.mjs'],
           env: {
-            PROJECT_CODE: project.code,
+            PROJECT_CODE: project?.code || '',
             ODOO_URL: odooConfig.url,
             ODOO_DB: odooConfig.db,
             ODOO_USERNAME: odooConfig.username,
@@ -402,7 +402,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
               ? '••••••••••••••••'
               : '<your-odoo-api-key>',
             ODOO_COMPANY_ID: String(odooConfig.companyId),
-            ODOO_PROJECT_ID: String(project.odoo_project_id),
+            ODOO_PROJECT_ID: String(project?.odoo_project_id || 0),
           },
         },
       },
@@ -418,13 +418,13 @@ export const AgentView: React.FC<AgentViewProps> = ({
           command: 'node',
           args: ['mcp/tianlane-mcp-server.mjs'],
           env: {
-            PROJECT_CODE: project.code,
+            PROJECT_CODE: project?.code || '',
             ODOO_URL: odooConfig.url,
             ODOO_DB: odooConfig.db,
             ODOO_USERNAME: odooConfig.username,
             ODOO_API_KEY: odooConfig.apiKey || '<your-odoo-api-key>',
             ODOO_COMPANY_ID: String(odooConfig.companyId),
-            ODOO_PROJECT_ID: String(project.odoo_project_id),
+            ODOO_PROJECT_ID: String(project?.odoo_project_id || 0),
           },
         },
       },
@@ -439,8 +439,9 @@ export const AgentView: React.FC<AgentViewProps> = ({
         <div>
           <h1 className="text-[20px] font-medium text-[#121317]">Agent</h1>
           <p className="text-[13px] text-[#45474D]">
-            Active project: {project.code} · {project.name} (Tracker #
-            {project.odoo_project_id} · {odooConfig.companyName})
+            {project
+              ? `Active project: ${project.code} · ${project.name} (Tracker #${project.odoo_project_id} · ${odooConfig.companyName})`
+              : `Workspace Agent (${odooConfig.companyName})`}
           </p>
         </div>
 
@@ -598,7 +599,7 @@ export const AgentView: React.FC<AgentViewProps> = ({
           <div className="text-[13px] text-[#121317]">
             <span className="font-medium">Confirm action: </span>
             {pendingConfirm === 'generate_odoo_tasks_from_app'
-              ? `Dispatch ${unlinkedTasks.length} new tasks to Execution Tracker Project #${project.odoo_project_id} (${odooConfig.url})?`
+              ? `Dispatch ${unlinkedTasks.length} new tasks to Execution Tracker Project #${project?.odoo_project_id || 0} (${odooConfig.url})?`
               : pendingConfirm === 'send_project_reminder_notification'
               ? `Send reminders for ${openTasks.length} active tasks to ${users.length} members?`
               : `Send weekly report for ${milestones.length} milestones?`}
@@ -818,7 +819,7 @@ export const TeamView: React.FC<TeamViewProps> = ({
           const doneCount = memberTasks.filter(
             (t) => t.kanban_status === 'done'
           ).length;
-          const isCurrent = member.id === currentUser.id;
+          const isCurrent = currentUser ? member.id === currentUser.id : false;
           const projRole = activeProject
             ? getUserProjectRole(activeProject, member)
             : 'viewer';
@@ -1589,7 +1590,7 @@ export const AccountManagementView: React.FC<AccountManagementViewProps> = ({
       <div className="divide-y divide-[#E6E8EE] rounded-3xl border border-[#E6E8EE] bg-white shadow-clean-xs overflow-hidden">
         {filteredUsers.map((u) => {
           const username = u.email.split('@')[0];
-          const isCurrent = currentUser.id === u.id;
+          const isCurrent = currentUser ? currentUser.id === u.id : false;
           const isUserAdm = isUserAdmin(u);
           const userTeams = teams.filter(
             (t) => t.member_ids?.includes(u.id) || t.pm_ids?.includes(u.id)
